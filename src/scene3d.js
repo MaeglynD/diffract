@@ -230,9 +230,40 @@ export class FieldScene{
   this.renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};this.cameraTween=null;this.transitionStart=0;});
   this.renderer.domElement.addEventListener('pointerup',e=>{if(!down||e.clientX>this.mainWidth||e.clientY>this.mainHeight||Math.hypot(e.clientX-down.x,e.clientY-down.y)>4||!this.volume||!this.options.detector)return;ray.setFromCamera(new THREE.Vector2(e.clientX/this.mainWidth*2-1,1-e.clientY/this.mainHeight*2),this.camera);const hit=ray.intersectObject(this.screen)[0];if(hit)this.onProbe(-hit.point.z,hit.point.y);});
   const handle=document.getElementById('detector-handle');
-  handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.setPointerCapture(e.pointerId);this.controls.enabled=false;this.cameraTween=null;if(this.live&&this.optic.userData.handle){this.drag={parameter:true,x:e.clientX,value:this.liveParameter};return;}const a=this.project([this.z,-this.viewHeight-1.2,0]),b=this.project([this.z+1,-this.viewHeight-1.2,0]);this.drag={x:e.clientX,y:e.clientY,z:this.z,dx:b.x-a.x,dy:b.y-a.y};});
-  handle.addEventListener('pointermove',e=>{if(!this.drag)return;const d=this.drag;if(d.parameter){this.onParameter?.(d.value+(e.clientX-d.x)*(this.experiment.id==='grin'?.02:.005));return;}const den=Math.max(.05,d.dx*d.dx+d.dy*d.dy),delta=((e.clientX-d.x)*d.dx+(e.clientY-d.y)*d.dy)/den;this.onDistance(Math.max(.5,Math.min(this.zMax,d.z+delta)));});
-  const stop=()=>{this.drag=null;this.controls.enabled=true;};for(const name of['pointerup','pointercancel','lostpointercapture'])handle.addEventListener(name,stop);
+  handle.addEventListener('pointerdown',e=>{
+   if(e.button!==0||this.drag)return;
+   e.preventDefault();handle.setPointerCapture(e.pointerId);this.controls.enabled=false;this.cameraTween=null;
+   const grip={pointer:e.pointerId,x:e.clientX,y:e.clientY,setup:this.setupVersion};
+   if(this.live&&this.optic.userData.handle){
+    const point=this.optic.userData.handle,{min,max}=this.experiment.interaction;
+    const project=v=>{
+     const p=new THREE.Vector4(...point(v),1).applyMatrix4(this.camera.matrixWorldInverse).applyMatrix4(this.camera.projectionMatrix);
+     return {x:(1+p.x/p.w)*this.mainWidth/2,y:(1-p.y/p.w)*this.mainHeight/2,w:p.w};
+    };
+    this.drag={...grip,rail:{min,max,a:project(min),b:project(max),start:project(this.liveParameter)}};
+    this.onParameter?.(this.liveParameter); // Hold the carriage even before the pointer moves.
+   }else{
+    const a=this.project([this.z,-this.viewHeight-1.2,0]),b=this.project([this.z+1,-this.viewHeight-1.2,0]);
+    this.drag={...grip,z:this.z,dx:b.x-a.x,dy:b.y-a.y};
+    this.onDistance(this.z);
+   }
+  });
+  handle.addEventListener('pointermove',e=>{
+   const d=this.drag;if(!d||e.pointerId!==d.pointer||d.setup!==this.setupVersion)return;
+   const mx=e.clientX-d.x,my=e.clientY-d.y;
+   if(d.rail){
+    const {min,max,a,b,start}=d.rail,dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy;
+    if(len2<1||Math.min(a.w,b.w)<=0)return; // End-on: there is no usable screen-space rail.
+    const s=THREE.MathUtils.clamp(((start.x-a.x+mx)*dx+(start.y-a.y+my)*dy)/len2,0,1);
+    // Undo perspective foreshortening to recover the physical position along the rail.
+    const t=s*a.w/((1-s)*b.w+s*a.w);
+    this.onParameter?.(min+(max-min)*t);
+   }else{
+    const delta=(mx*d.dx+my*d.dy)/Math.max(.05,d.dx*d.dx+d.dy*d.dy);
+    this.onDistance(Math.max(.5,Math.min(this.zMax,d.z+delta)));
+   }
+  });
+  const stop=e=>{if(e.pointerId===this.drag?.pointer){this.drag=null;this.controls.enabled=true;}};for(const name of['pointerup','pointercancel','lostpointercapture'])handle.addEventListener(name,stop);
  }
  project(point){const p=new THREE.Vector3(...point).project(this.camera);return{x:(p.x*.5+.5)*this.mainWidth,y:(.5-p.y*.5)*this.mainHeight,visible:p.z<1&&Math.abs(p.x)<1&&Math.abs(p.y)<1};}
  updateReady(){document.getElementById('app').dataset.ready=String(document.getElementById('app').dataset.experiment===this.experiment?.id&&!!this.volume&&this.surfaceReady&&this.topologyReady!==false&&(this.experiment?.object!=='bunny'||!!this.models.userData.target));}
@@ -270,10 +301,10 @@ export class FieldScene{
 
   if(this.cameraTween){const t=this.cameraTween,f=Math.min(1,(now-t.start)/380),s=1-(1-f)**3;this.camera.position.lerpVectors(t.from,t.to,s);this.controls.target.lerpVectors(t.fromTarget,t.target,s);if(f===1)this.cameraTween=null;}
   this.uniforms.reveal.value=1;this.eArrows.material.uniforms.reveal.value=this.bArrows.material.uniforms.reveal.value=1;
-  this.controls.update();this.camera.updateMatrixWorld();this.studioUniforms.studioDirection.value.copy(this.lightRig.key.position).transformDirection(this.camera.matrixWorldInverse);this.uniforms.timePhase.value=phase;this.eArrows.material.uniforms.timePhase.value=this.bArrows.material.uniforms.timePhase.value=phase;
+  if(!this.drag)this.controls.update();this.camera.updateMatrixWorld();this.studioUniforms.studioDirection.value.copy(this.lightRig.key.position).transformDirection(this.camera.matrixWorldInverse);this.uniforms.timePhase.value=phase;this.eArrows.material.uniforms.timePhase.value=this.bArrows.material.uniforms.timePhase.value=phase;
   this.labelItems=[];this.positionLabel('detector-handle',this.live&&this.optic.userData.handle?this.optic.userData.handle(this.liveParameter):[this.z,-this.viewHeight-1.2,0],this.live&&!!this.optic.userData.handle||this.options.detector&&(!this.experiment?.interaction||this.experiment.interaction.kind==='distance'));
   (this.optic.userData.labels||[]).forEach((label,i)=>this.positionLabel('bench-label-'+i,label.p,this.options.labels));
-  if(this.options.labels){if(this.experiment){const h=plateHalf(this.experiment);this.positionLabel('optic-label',this.optic.userData.label||[0,h+1.1,0]);this.positionLabel('incident-label',[-10,h*.94+2,0],this.options.incident&&!this.experiment.analytic&&this.experiment.kind!=='beams');}const bunny=this.experiment?.object==='bunny';this.positionLabel('source-label',[-75,-18,0],bunny);this.positionLabel('sensor-label',[-42,22,0],bunny);this.positionLabel('processor-label',[-41,-30,23],bunny);this.positionLabel('object-light-label',[-57,20,27],bunny);this.positionLabel('reference-light-label',[-64,27,-7],bunny);this.positionLabel('target-label',[32,23,0],this.experiment?.object==='bunny'&&this.options.surfaceGuide);}
+  if(this.options.labels){if(this.experiment){const h=plateHalf(this.experiment);this.positionLabel('optic-label',this.optic.userData.label||[0,h+1.1,0],!this.optic.userData.labels?.length);this.positionLabel('incident-label',[-10,h*.94+2,0],this.options.incident&&!this.experiment.analytic&&this.experiment.kind!=='beams');}const bunny=this.experiment?.object==='bunny';this.positionLabel('source-label',[-75,-18,0],bunny);this.positionLabel('sensor-label',[-42,22,0],bunny);this.positionLabel('processor-label',[-41,-30,23],bunny);this.positionLabel('object-light-label',[-57,20,27],bunny);this.positionLabel('reference-light-label',[-64,27,-7],bunny);this.positionLabel('target-label',[32,23,0],this.experiment?.object==='bunny'&&this.options.surfaceGuide);}
   this.positionLabel('vortex-label',[this.experiment?.vortex?22:32,6.5,0],!!(this.options.labels&&this.experiment?.vortex&&this.options.vortexLines));
   const imageGuide=this.experiment?.id==='metamorphosis'?(this.topology.userData.imageGuides||[]).find(g=>Math.abs(g.z-this.z)<3):null;const designLabel=document.getElementById('design-label'),designText=imageGuide?imageGuide.name+' · guide':'Design curves';if(designLabel.textContent!==designText)designLabel.textContent=designText;this.positionLabel('design-label',[imageGuide?.z||40,10,0],!!(this.options.labels&&this.options.surfaceGuide&&(this.experiment?.id==='saturn'||imageGuide)));
   this.positionLabel('obstacle-label',[this.experiment?.interfaceZ||0,5,0],!!(this.options.labels&&this.experiment?.interfaceZ));
