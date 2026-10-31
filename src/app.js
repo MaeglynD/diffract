@@ -28,7 +28,7 @@ function warmDetails(){
 
 const gallery=$('experiments');
 for(const e of EXPERIMENTS){
- const button=document.createElement('button');button.className='experiment';button.dataset.experiment=e.id;button.setAttribute('aria-label',e.name);button.setAttribute('aria-pressed',e.id===state.id);button.innerHTML=`<img data-src="./assets/previews/${e.id}.svg" decoding="async" fetchpriority="low" alt="${e.name} optical setup" width="180" height="105"><span>${e.name}</span><svg class="load-orbit" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7"/><circle cx="9" cy="9" r="7"/></svg>`;
+ const button=document.createElement('button');button.className='experiment';button.dataset.experiment=e.id;button.setAttribute('aria-label',e.name);button.setAttribute('aria-pressed',e.id===state.id);button.innerHTML=`<img data-src="./assets/previews/${e.id}.svg" decoding="async" fetchpriority="low" alt="${e.name} optical setup" width="180" height="105"><span>${e.name}</span>`;
  button.addEventListener('click',()=>selectExperiment(e.id));gallery.appendChild(button);
 }
 const thumbnailObserver=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){const img=entry.target;img.src=img.dataset.src;img.decode().then(()=>img.classList.add('loaded')).catch(()=>{});thumbnailObserver.unobserve(img);}},{root:gallery,rootMargin:'0px 320px'});
@@ -45,7 +45,7 @@ function loading(message,refining=false){$('loading').classList.toggle('ready',!
 function fail(error){$('error').hidden=false;$('error').textContent=error instanceof Error?error.message:String(error);loading('');}
 try{scene=new FieldScene($('stage'),z=>{state.sweeping=false;updateSweep();setDistance(z);},(x,y)=>setProbe({x,y}));scene.onError=fail;}catch(error){fail(`This visualization needs WebGL 2. ${error.message}`);}
 const settings=scene?setupSettings(scene,tex,initial):{options:appearanceFor(initial)},appearance=settings.options;
-if(scene)setupThemeCycle(scene,settings);
+if(scene)setupThemeCycle(scene);
 if(thumbnail){Object.assign(appearance,{labels:false,axes:false,vectors:'none'});scene?.applyAppearance(appearance);}
 
 function acquire(id,quality,onProgress=()=>{}){
@@ -69,7 +69,7 @@ function commitExperiment(e,data,gpu,prepared){
  $('slit-interference').hidden=id!=='double';$('slit-phase-title').textContent=id==='michelson'?'Return-arm optical delay':'Between the two slits';$('slit-phase').setAttribute('aria-label',id==='michelson'?'Relative arm phase':'Relative slit phase');$('slit-phase').value=0;paintRange($('slit-phase'));$('slit-phase').disabled=true;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=true;tex($('slit-phase-value'),String.raw`\delta=0`);
  $('surface-guide-setting').hidden=!e.object&&!['saturn','metamorphosis'].includes(id);$('surface-guide-label').textContent=id==='saturn'?'Design curves':id==='metamorphosis'?'Image guides':'Reconstruction surface';$('element-opacity-setting').hidden=e.kind==='beams';$('show-incident').closest('label').hidden=!!e.analytic;$('vortex-setting').hidden=!e.vortex;$('focus-emphasis-setting').hidden=!e.focusWindow;
  $('optic-label').querySelector('[data-tex]').hidden=!!e.analytic;$('distance').max=e.zMax;$('distance').value=e.z;paintRange($('distance'));labelDirty=true;setProbe(null);detailsDirty=true;document.title=e.name+' · diffract';
- firstFrame=false;showVolume(e,data,gpu,prepared);configureInteraction(e);setDistance(state.z,false);markRequest(id,false);
+ firstFrame=false;showVolume(e,data,gpu,prepared);configureInteraction(e);setDistance(state.z,false);loadProgress(id,1);markRequest(id,false);
  warmDetails();
  for(const element of [document.querySelector('.view-modes'),$('distance-value'),$('focus-stops')]){element.getAnimations().forEach(a=>a.cancel());element.animate([{opacity:.25},{opacity:1}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});}
  $('app').dataset.commitMs=(performance.now()-commitStarted).toFixed(1);

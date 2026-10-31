@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {coatingGLSL,coatingUniforms} from './studio-light.js';
 import {CAVITY,GUIDE,GAP} from './native-config.js';
 import {makeBenchApparatus} from './bench-apparatus.js';
 
@@ -7,7 +8,32 @@ import {makeBenchApparatus} from './bench-apparatus.js';
 const metal=()=>new THREE.MeshStandardMaterial({color:0x536d79,metalness:.45,roughness:.27,emissive:0x101f28,emissiveIntensity:.25});
 const dark=()=>new THREE.MeshStandardMaterial({color:0x091a23,metalness:.35,roughness:.42});
 function solid(g,m=metal()){const mesh=new THREE.Mesh(g,m);mesh.layers.enable(4);return mesh;}
-function glass(tint){return new THREE.ShaderMaterial({side:THREE.DoubleSide,depthWrite:true,uniforms:{opacity:{value:.35},tint:{value:new THREE.Color(tint)},studioFill:{value:1},studioTint:{value:new THREE.Color(1,1,1)},studioDirection:{value:new THREE.Vector3(-.4,.8,1).normalize()}},vertexShader:`varying vec3 n,v;void main(){vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}`,fragmentShader:`uniform float opacity,studioFill;uniform vec3 tint,studioTint,studioDirection;varying vec3 n,v;void main(){vec3 N=normalize(n),V=normalize(v);float f=pow(1.-abs(dot(N,V)),3.),s=pow(abs(dot(N,normalize(studioDirection+V))),70.);vec3 c=tint*(.25+.18*abs(dot(N,studioDirection)))+vec3(.78,.92,1.)*(s*.35+f*.28);gl_FragColor=vec4(c*studioTint*studioFill,opacity*(.22+.32*f));}`});}
+function glass(tint){
+ return new THREE.ShaderMaterial({
+  side:THREE.DoubleSide,depthWrite:true,
+  uniforms:{...coatingUniforms(),opacity:{value:.35},tint:{value:new THREE.Color(tint)},
+   studioFill:{value:1},studioTint:{value:new THREE.Color(1,1,1)},studioDirection:{value:new THREE.Vector3(-.4,.8,1).normalize()}},
+  vertexShader:`varying vec3 n,v;
+   void main(){
+    vec4 p=modelViewMatrix*vec4(position,1.);
+    n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;
+   }`,
+  fragmentShader:coatingGLSL+`
+   uniform float opacity,studioFill;
+   uniform vec3 tint,studioTint,studioDirection;
+   varying vec3 n,v;
+   void main(){
+    vec3 N=normalize(n),V=normalize(v);
+    float edge=pow(1.-abs(dot(N,V)),3.);
+    float spec=pow(abs(dot(N,normalize(studioDirection+V))),70.);
+    vec3 base=tint*(.25+.18*abs(dot(N,studioDirection)))+vec3(.78,.92,1.)*(spec*.35+edge*.28);
+    vec3 coated=studioCoating(base,N,V,.92);
+    float glint=dot(max(coated-.83*base,vec3(0.)),vec3(.21,.72,.07));
+    float coverage=.22+.32*edge+studioMix*(.10+.38*edge+.92*glint);
+    gl_FragColor=vec4(coated*studioTint*studioFill,clamp(opacity*coverage,0.,1.));
+   }`
+ });
+}
 function edges(root,geometry,position,color=0x88b9c6,opacity=.28){const line=new THREE.LineSegments(new THREE.EdgesGeometry(geometry,28),new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false}));line.position.copy(position);line.layers.set(2);root.add(line);}
 function pane(root,geometry,position,tint=0x83bfd0){const material=glass(tint),mesh=new THREE.Mesh(geometry,material);mesh.position.copy(position);mesh.layers.set(5);root.add(mesh);root.userData.surfaces.push(material);edges(mesh,geometry,new THREE.Vector3());return mesh;}
 function box(root,size,at,material){const mesh=solid(new THREE.BoxGeometry(...size),material);mesh.position.set(...at);root.add(mesh);return mesh;}

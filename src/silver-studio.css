@@ -1,0 +1,47 @@
+/* Champagne instrument markings on the same charcoal as the optical table. */
+#app[data-theme="Silver studio"] {
+  --engraving: #e7dfd0;
+  --secondary: #b6b2ad;
+  --brass: #baaa8d;
+  color: var(--engraving);
+}
+[data-theme="Silver studio"] .experiment { color: var(--secondary); }
+[data-theme="Silver studio"] .experiment:is(:hover,[aria-pressed=true]) { color: #fff2dc; }
+[data-theme="Silver studio"] .world-label,
+[data-theme="Silver studio"] .world-label .katex {
+  color: #e4dccc;
+  text-shadow: 0 1px 3px #101016, 0 0 9px #16141c;
+}
+[data-theme="Silver studio"] #label-links path { stroke: #d9cdb4; }
+[data-theme="Silver studio"] .scene-actions .icon {
+  color: var(--secondary);
+  box-shadow: inset 0 0 0 1px #ddcdae14;
+}
+[data-theme="Silver studio"] .scene-actions .icon:is(:hover,[aria-pressed=true],[aria-expanded=true]) {
+  color: #fff2db;
+  background: #ac9a7d2e;
+}
+[data-theme="Silver studio"] .detector-window { box-shadow: 0 0 0 1px #dfcdae35; }
+[data-theme="Silver studio"] .detector-window .view-modes { background: #151c23e8; }
+[data-theme="Silver studio"] .detector-window .view-modes button { color: var(--secondary); }
+[data-theme="Silver studio"] .detector-window .view-modes button:is(:hover,[aria-selected=true]) { color: var(--engraving); }
+[data-theme="Silver studio"] :is(.control-heading,.setting-label,.setting>label,.switch,.settings-tabs button,.cycle-heading,.camera-choices button,.segmented button,.settings-footer button,.comparison-control button,.focus-stops button) { color: var(--secondary); }
+[data-theme="Silver studio"] :is(.settings-heading,.setting output,#experiment-value,#distance-value,#detector-handle,#theme-toast),
+[data-theme="Silver studio"] :is(.settings-tabs button,.segmented button,.comparison-control button,.focus-stops button):is([aria-selected=true],[aria-pressed=true]) { color: var(--engraving); }
+[data-theme="Silver studio"] input[type=range] { accent-color: var(--brass); }
+[data-theme="Silver studio"] input[type=range]::-webkit-slider-runnable-track { background: linear-gradient(90deg,var(--brass) var(--fill),#b7adb32e var(--fill)); }
+[data-theme="Silver studio"] input[type=range]::-moz-range-progress { background: var(--brass); }
+[data-theme="Silver studio"] input[type=range]::-webkit-slider-thumb { background: #f2e6d0; border-color: var(--brass); }
+[data-theme="Silver studio"] input[type=range]::-moz-range-thumb { background: #f2e6d0; border-color: var(--brass); }
+[data-theme="Silver studio"] .switch input:checked+i { background: #afa0864d; border-color: #cbbda766; }
+[data-theme="Silver studio"] .switch input:checked+i:after { background: var(--engraving); }
+[data-theme="Silver studio"] .segmented { background: #10101470; border-color: #dccbb91b; }
+[data-theme="Silver studio"] :is(.segmented,.palette-choices) button[aria-pressed=true] {
+  background: #bda98e17;
+  box-shadow: inset 0 0 0 1px #d8c5a82c;
+  color: var(--engraving);
+}
+[data-theme="Silver studio"] :is(.setting-note,.palette-choices button,#reset-appearance) { color: var(--secondary); }
+[data-theme="Silver studio"] dialog { background: #1b232b; color: var(--engraving); border-color: #c1ced533; }
+[data-theme="Silver studio"] dialog :is(p,.model-note,.element-card p) { color: var(--secondary); }
+[data-theme="Silver studio"] dialog .element-card { background: #131a21; }

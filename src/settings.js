@@ -56,7 +56,7 @@ export function setupSettings(scene,tex,initial='bunny'){
  }
 
  for(const tab of tabs){tab.addEventListener('click',()=>selectTab(tab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next]);tabs[next].focus();});}
- reflect();return{options,setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},useExperiment(id){current=id;cancelAnimationFrame(scheduled);scheduled=0;Object.assign(options,appearanceFor(id));reflect(undefined,false);scene.options={...options};},setPalette(palette){options.palette=palette;save('palette');}};
+ reflect();return{options,setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},useExperiment(id){current=id;cancelAnimationFrame(scheduled);scheduled=0;Object.assign(options,appearanceFor(id));reflect(undefined,false);scene.options={...options};}};
 }
 export function showElement(e,tex){
  const canvas=document.getElementById('element-preview'),phasePlate=e.kind==='phase'||e.kind==='axicon',ctx=canvas.getContext('2d');canvas.dataset.experiment=e.id;ctx.fillStyle=e.analytic?'#0b1821':'#9dd8e3';ctx.fillRect(0,0,200,200);let image=maskImages.get(e.id);const draw=()=>{if(canvas.dataset.experiment===e.id)ctx.drawImage(image,0,e.analytic?42.5:0,200,e.analytic?115:200);};if(image?.complete)draw();else{image=new Image();maskImages.set(e.id,image);image.onload=draw;image.src=e.analytic?'./assets/previews/'+e.id+'.svg':'./assets/masks/'+e.id+'.png';}
