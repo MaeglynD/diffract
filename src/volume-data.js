@@ -28,9 +28,9 @@ export function decodeVolume(buffer) {
   return { ...meta, textures, buffer };
 }
 let loader,nextRequest=0;const requests=new Map();
-export function loadVolume(url,signal){
- if(!loader){loader=new Worker(new URL('./field-loader.worker.js',import.meta.url),{type:'module'});loader.onmessage=({data})=>{const pending=requests.get(data.id);if(!pending)return;requests.delete(data.id);pending.cleanup();if(data.error)pending.reject(new Error(data.error));else pending.resolve(Object.assign(decodeVolume(data.buffer),{vectorBounds:data.vectorBounds,bunnyStrength:data.bunnyStrength,energy:data.energy}));};loader.onerror=event=>{for(const p of requests.values()){p.cleanup();p.reject(new Error(event.message||'Field loader interrupted.'));}requests.clear();};}
- const id=++nextRequest;return new Promise((resolve,reject)=>{const abort=()=>{loader.postMessage({id,abort:true});requests.delete(id);reject(new DOMException('Aborted','AbortError'));};if(signal?.aborted){abort();return;}signal?.addEventListener('abort',abort,{once:true});requests.set(id,{resolve,reject,cleanup:()=>signal?.removeEventListener('abort',abort)});loader.postMessage({id,url:new URL(url,document.baseURI).href});});
+export function loadVolume(url,signal,onProgress=()=>{}){
+ if(!loader){loader=new Worker(new URL('./field-loader.worker.js',import.meta.url),{type:'module'});loader.onmessage=({data})=>{const pending=requests.get(data.id);if(!pending)return;if(data.progress!==undefined){pending.onProgress(data.progress);return;}requests.delete(data.id);pending.cleanup();if(data.error)pending.reject(new Error(data.error));else pending.resolve(Object.assign(decodeVolume(data.buffer),{vectorBounds:data.vectorBounds,bunnyStrength:data.bunnyStrength,energy:data.energy,loadMetrics:data.metrics}));};loader.onerror=event=>{for(const p of requests.values()){p.cleanup();p.reject(new Error(event.message||'Field loader interrupted.'));}requests.clear();loader.terminate();loader=null;};}
+ const id=++nextRequest;return new Promise((resolve,reject)=>{const abort=()=>{loader.postMessage({id,abort:true});requests.delete(id);reject(new DOMException('Aborted','AbortError'));};if(signal?.aborted){abort();return;}signal?.addEventListener('abort',abort,{once:true});requests.set(id,{resolve,reject,onProgress,cleanup:()=>signal?.removeEventListener('abort',abort)});loader.postMessage({id,url:new URL(url,document.baseURI).href});});
 }
 
 export function sampleField(volume, x, y, z, out = new Float32Array(10)) {

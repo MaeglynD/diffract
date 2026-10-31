@@ -69,11 +69,11 @@ node scripts/serve.mjs --dist
 
 The server binds to loopback. Set the `PORT` environment variable to use a different port. The build output in `dist/` can be served as static files.
 
-The complete field collection, including previews, is about **2 GiB compressed**. The browser loads the selected experiment, with smaller previews and a bounded cache; it does not download the entire collection on arrival. First-load time depends on the host and connection.
+Each setup normally downloads **190–392 KiB** of angular-spectrum data. A worker reconstructs the same complex electric and magnetic fields locally with a GPU inverse FFT, first at preview resolution and then on the full original grid. No retained modes are discarded. Nearby spectra are prefetched, generated volumes use a bounded memory cache, and leaving a setup cancels its work. The approximately 2 GiB collection of reference volumes remains available as a compatibility fallback.
 
 ### Deploy to Cloudflare
 
-The production build is entirely static. It packages the original compressed fields into content-addressed files of at most 16 MiB, below Cloudflare's per-file limit. The browser streams these pieces together before decompression; no field samples or precision are changed. There is no server-side Worker code, database, or R2 bucket.
+The production build is entirely static. Compact angular spectra use content-addressed URLs and immutable caching. The original compressed fields are also packaged into files of at most 16 MiB for browsers without floating-point worker WebGL; this fallback is byte-for-byte identical to the reference data. There is no server-side Worker code, database, or R2 bucket.
 
 ```sh
 npm ci
@@ -109,7 +109,8 @@ The test suite covers Maxwell consistency, power conservation, independent diffr
 | Part | Responsibility |
 | :--- | :--- |
 | [`src/experiments.js`](src/experiments.js) | Optical transmissions, dimensions, and catalogue |
-| [`src/physics.js`](src/physics.js) | Vector angular-spectrum propagation |
+| [`src/physics.js`](src/physics.js) | Reference vector angular-spectrum propagation |
+| [`src/spectral-volume.js`](src/spectral-volume.js) | Compact-spectrum GPU reconstruction in a worker |
 | [`src/scene3d.js`](src/scene3d.js) · [`src/render-shaders.js`](src/render-shaders.js) | Three-dimensional rendering and detector sampling |
 | [`src/display-presets.js`](src/display-presets.js) | Curated display defaults |
 | [`scripts/`](scripts/) | Reproducible field, geometry, and preview generation |

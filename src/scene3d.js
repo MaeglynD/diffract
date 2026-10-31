@@ -73,7 +73,22 @@ export class FieldScene{
   key.color.copy(t.key).lerp(b.key,f);key.intensity=mix(t.keyPower,a.keyPower);key.position.copy(t.keyPosition).lerp(b.keyPosition,f);rim.color.copy(t.rim).lerp(b.rim,f);rim.intensity=mix(t.rimPower,a.rimPower);rim.position.copy(t.rimPosition).lerp(b.rimPosition,f);
   this.renderer.toneMappingExposure=mix(t.exposure,a.exposure);this.studioUniforms.studioTint.value.copy(t.tint).lerp(b.tint,f);this.studioUniforms.studioFill.value=mix(t.opticFill,a.opticFill);this.studioUniforms.studioDirection.value.copy(key.position).normalize();if(p===1)this.themeTransition=null;
  }
- setExperiment(e,volume,gpu){
+ async prepareExperiment(e){
+  if(this.experiment?.id===e.id)return null;
+  const bundle={optic:makeOpticalElement(e),illumination:makeIllumination(e),models:new THREE.Group(),topology:new THREE.Group()};
+  try{
+   const ready=await Promise.allSettled([bundle.optic.userData.ready,bundle.optic.userData.maskMap?.userData.ready,
+    e.object==='bunny'?makeBunnyModels(this.uniforms).then(root=>bundle.models=root):null,
+    e.vortex?makeTopology(e.id,this.uniforms).then(root=>bundle.topology=root):null]);
+   const failure=ready.find(item=>item.status==='rejected');if(failure)throw failure.reason;
+   if(e.id==='metamorphosis')bundle.topology=makeImageGuides(this.uniforms);
+   if(e.id==='saturn')bundle.topology.add(makeDesignCurves(this.uniforms));
+   return bundle;
+  }catch(error){this.discardPrepared(bundle);throw error;}
+ }
+ discardPrepared(bundle){if(bundle)for(const root of Object.values(bundle))dispose(root);}
+ setExperiment(e,volume,gpu,prepared){
+
   const changed=this.experiment?.id!==e.id;if(changed){this.clearAuxiliary();this.setSlitPhase(0);}this.experiment=e;this.volume=volume;this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.kind==='beams'?0:10;
   for(const name of['electricMap','magneticMap','extraMap','energyMap'])if(this.uniforms[name].value!==this.emptyTexture)this.uniforms[name].value.dispose();
   [this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]=gpu||[...volume.textures.map(t=>texture3D(t,volume.nx,volume.ny,volume.nz)),energyTexture(volume.energy,volume.nx,volume.ny,volume.nz)];
@@ -81,9 +96,14 @@ export class FieldScene{
   this.uniforms.interfaceZ.value=volume.interfaceZ||0;this.uniforms.fieldReference.value=volume.maxE;
   this.volumeMesh.geometry.dispose();this.volumeMesh.geometry=new THREE.BoxGeometry(e.zMax+this.incidentLength,2*e.half,2*e.half).translate((e.zMax-this.incidentLength)/2,0,0);this.volumeMesh.visible=true;
   this.screen.scale.set(e.half*2,e.half*2,1);this.updateFrame();this.prepareVectorSamples();
-  if(changed){const setupVersion=this.setupVersion=(this.setupVersion||0)+1;this.revealStart=performance.now();dispose(this.optic);this.scene.remove(this.optic);this.optic=makeOpticalElement(e);this.scene.add(this.optic);this.lightOptic();this.surfaceReady=!this.optic.userData.ready;this.optic.userData.ready?.then(()=>{if(this.setupVersion!==setupVersion)return;this.surfaceReady=true;this.lightOptic();if(this.optic.userData.glassMaterial)this.optic.userData.glassMaterial.uniforms.opacity.value=this.options.maskOpacity;this.updateReady();}).catch(error=>this.onError?.(error));this.uniforms.maskMap.value=this.optic.userData.maskMap;dispose(this.illumination);this.scene.remove(this.illumination);this.illumination=makeIllumination(e);this.scene.add(this.illumination);dispose(this.models);this.models.clear();this.models.userData={};if(e.object==='bunny')makeBunnyModels(this.uniforms).then(models=>{if(this.experiment?.id!==e.id||this.setupVersion!==setupVersion){dispose(models);return;}this.scene.remove(this.models);this.models=models;this.scene.add(models);updateBunnySurface(models,this.volume);models.userData.target.visible=this.options.surfaceGuide;models.userData.target.material.uniforms.cutZ.value=this.z;this.uniforms.showGuide.value=this.options.surfaceGuide;this.applyAppearance(this.options);this.updateReady();document.getElementById('app').dataset.modelVertices=String(models.userData.meta.vertices);}).catch(error=>this.onError?.(error.message));this.buildTrack();this.setDistance(e.z);this.setProbe(null);this.resetView(false);}
-  else this.setDistance(this.z);
-  if(changed){const version=this.setupVersion;dispose(this.topology);this.scene.remove(this.topology);this.topology=e.id==='metamorphosis'?makeImageGuides(this.uniforms):new THREE.Group();this.scene.add(this.topology);this.topologyReady=!e.vortex;if(e.id==='saturn')this.topology.add(makeDesignCurves(this.uniforms));this.uniforms.nodalCount.value=0;if(e.vortex)makeTopology(e.id,this.uniforms).then(root=>{if(this.setupVersion!==version){dispose(root);return;}this.scene.remove(this.topology);this.topology=root;this.scene.add(root);this.topologyReady=true;this.topology.visible=this.options.vortexLines;this.setDistance(this.z);this.updateReady();}).catch(error=>this.onError?.(error));}
+  if(changed){
+   if(!prepared)throw Error('Optical setup was not prepared');
+   this.setupVersion=(this.setupVersion||0)+1;this.revealStart=performance.now();
+   for(const name of ['optic','illumination','models','topology']){dispose(this[name]);this.scene.remove(this[name]);this[name]=prepared[name];this.scene.add(this[name]);}
+   this.surfaceReady=this.topologyReady=true;this.lightOptic();this.uniforms.maskMap.value=this.optic.userData.maskMap;this.uniforms.nodalCount.value=0;
+   if(this.models.userData.target){this.models.userData.target.material.uniforms.cutZ.value=this.z;document.getElementById('app').dataset.modelVertices=String(this.models.userData.meta.vertices);}
+   this.buildTrack();this.setDistance(e.z);this.setProbe(null);this.resetView(true);
+  }else this.setDistance(this.z);
   if(this.models.userData.target)updateBunnySurface(this.models,volume);
   this.applyAppearance(this.options,true);
   const app=document.getElementById('app');app.dataset.volumeDimensions=`${volume.nx},${volume.ny},${volume.nz}`;app.dataset.quality=volume.quality;if(volume.quality==='full'&&new URLSearchParams(location.search).has('verify'))app.dataset.gpuValidation=JSON.stringify(verifyGpuVolume(this.renderer,volume,[this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]));
@@ -169,12 +189,14 @@ export class FieldScene{
  project(point){const p=new THREE.Vector3(...point).project(this.camera);return{x:(p.x*.5+.5)*this.mainWidth,y:(.5-p.y*.5)*this.mainHeight,visible:p.z<1&&Math.abs(p.x)<1&&Math.abs(p.y)<1};}
  updateReady(){document.getElementById('app').dataset.ready=String(document.getElementById('app').dataset.experiment===this.experiment?.id&&!!this.volume&&this.surfaceReady&&this.topologyReady!==false&&(this.experiment?.object!=='bunny'||!!this.models.userData.target));}
  positionLabel(id,point,visible=true){const p=this.project(point),el=document.getElementById(id);if(!el)return;el.hidden=!visible||!p.visible;if(el.classList.contains('world-label')){if(!el.hidden)this.labelItems.push({el,p});}else el.style.transform=`translate(${p.x}px,${p.y}px)`;}
- async uploadVolume(volume,active=()=>true){
+ async uploadVolume(volume,active=()=>true,onProgress=()=>{}){
   const count=volume.energy?4:3,textures=[],next=()=>new Promise(resolve=>requestAnimationFrame(resolve));
-  for(let c=0;c<count;c++){if(!active()){textures.forEach(t=>t.dispose());return null;}const t=(c===3?energyTexture:texture3D)(null,volume.nx,volume.ny,volume.nz);t.source.dataReady=false;this.renderer.initTexture(t);textures.push(t);await next();}
+  let deadline=performance.now()+5;
+  for(let c=0;c<count;c++){if(!active()){textures.forEach(t=>t.dispose());return null;}const t=(c===3?energyTexture:texture3D)(null,volume.nx,volume.ny,volume.nz);t.source.dataReady=false;this.renderer.initTexture(t);textures.push(t);if(performance.now()>deadline){await next();deadline=performance.now()+5;}}
   const stride=volume.nx*volume.ny*4;
-  for(let z=0;z<volume.nz;z+=4){if(!active()){textures.forEach(t=>t.dispose());return null;}const depth=Math.min(4,volume.nz-z);
-   for(let c=0;c<count;c++){const size=stride,data=c===3?volume.energy:volume.textures[c],part=(c===3?energyTexture:texture3D)(data.subarray(z*size,(z+depth)*size),volume.nx,volume.ny,depth);this.renderer.copyTextureToTexture(part,textures[c],null,new THREE.Vector3(0,0,z));part.dispose();}await next();
+  for(let z=0;z<volume.nz;z+=8){if(!active()){textures.forEach(t=>t.dispose());return null;}const depth=Math.min(8,volume.nz-z);
+   for(let c=0;c<count;c++){const data=c===3?volume.energy:volume.textures[c],part=(c===3?energyTexture:texture3D)(data.subarray(z*stride,(z+depth)*stride),volume.nx,volume.ny,depth);this.renderer.copyTextureToTexture(part,textures[c],null,new THREE.Vector3(0,0,z));part.dispose();}
+   onProgress(Math.min(1,(z+depth)/volume.nz));if(performance.now()>deadline){await next();deadline=performance.now()+5;}
   }return textures;
  }
  captureTransition(duration=360){if(!this.volume)return Promise.resolve();this.transitionDuration=duration;return new Promise(resolve=>{(this.capturePending??=[]).push(resolve);});}

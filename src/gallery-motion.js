@@ -2,9 +2,10 @@
 // Pointer/wheel input always takes over immediately from a selection transition.
 export function setupGalleryMotion(gallery){
  let animation=0;
- const edges=()=>{gallery.classList.toggle('at-start',gallery.scrollLeft<5);gallery.classList.toggle('at-end',gallery.scrollLeft>gallery.scrollWidth-gallery.clientWidth-5);};
+ let extent=0;
+ const edges=()=>{gallery.classList.toggle('at-start',gallery.scrollLeft<5);gallery.classList.toggle('at-end',gallery.scrollLeft>extent-5);};
  const stop=()=>{cancelAnimationFrame(animation);animation=0;};
- const layout=()=>{edges();document.documentElement.style.setProperty('--catalog-bottom',`${Math.ceil(gallery.getBoundingClientRect().bottom+14)}px`);};
+ const layout=()=>{extent=gallery.scrollWidth-gallery.clientWidth;edges();document.documentElement.style.setProperty('--catalog-bottom',`${Math.ceil(gallery.getBoundingClientRect().bottom+14)}px`);};
  new ResizeObserver(layout).observe(gallery);gallery.addEventListener('scroll',edges,{passive:true});
  gallery.addEventListener('pointerdown',stop,{passive:true});gallery.addEventListener('wheel',event=>{stop();if(gallery.scrollWidth>gallery.clientWidth&&Math.abs(event.deltaY)>Math.abs(event.deltaX)){gallery.scrollLeft+=event.deltaY;event.preventDefault();}},{passive:false});
  layout();

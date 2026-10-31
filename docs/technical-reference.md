@@ -121,8 +121,9 @@ The incoming field is an analytic plane wave, $\mathbf E/E_0=\hat{\mathbf y}\cos
 - Full volumes store all five nonzero complex components at transverse spacing $0.25\lambda$, aligned exactly with the propagation grid to avoid an extra interpolation. Transverse grids range from $113^2$ to $233^2$ samples; axial spacing is $0.5\lambda$, with experiment-specific travel of $42$–$96\lambda$.
 - The common $e^{ikz}$ carrier is removed before binary16 storage and trilinear interpolation, then restored analytically. The implementation interpolates complex fields and forms flux afterward, preserving interference.
 - Three half-float 3D textures retain the complex fields; a fourth accelerates the energy display at the same resolution. A detector input changes shader uniforms and the plane position, with no queued Fourier calculation.
-- An aligned half-resolution preview ($\Delta x=\Delta y=0.5\lambda$, $\Delta z=1\lambda$) appears first, then crossfades to full resolution over 650 ms. Only neighbouring previews are prefetched; six previews and three full volumes are retained. A cached full volume opens directly without returning to preview quality. Decompression, density preparation, vector bounds and bunny surface sampling run in a worker. Full textures upload in small groups of depth layers between frames. Manual dragging briefly defers refinement; automatic scanning does not. Field resolution is never automatically reduced to improve frame rate. The complete high-resolution asset set is approximately 1,824 MiB compressed, including the auxiliary right-slit volume; only selected full volumes are loaded.
-- Preset changes crossfade a captured rendered frame while easing the camera. Dragging avoids repeated layout reads, and unchanged LaTeX is not rendered again. Information equations render when the information dialog opens.
+- Each setup downloads a content-addressed angular spectrum of approximately 190–392 KiB, preserving every retained complex Fourier coefficient in Float64. A WebGL 2 worker applies the same longitudinal propagation phase and Maxwell component factors, then performs Float32 inverse FFTs. The preview uses a smaller transform only because the entire retained spectral support fits inside it; it samples the same field at the aligned preview-grid coordinates. Full resolution retains the original transform size, spatial grid, component layout and binary16 output. The two-sided obstruction includes both angular spectra and preserves the discontinuity.
+- An aligned half-resolution preview ($\Delta x=\Delta y=0.5\lambda$, $\Delta z=1\lambda$) appears first, then crossfades to full resolution over 420 ms. The visible scene, detector controls and display defaults commit together only after the next field and hardware are ready. Superseded preview and full jobs are cancelled. Texture uploads use a frame-time budget. Full fields are cached up to three entries / 320 MiB, previews up to eight entries / 72 MiB (the active field is retained). Nearby compact spectra are prefetched without computing background volumes. Unsupported floating-point worker contexts use the original losslessly packaged volumes. Field resolution is never automatically reduced to improve frame rate.
+- Preset changes crossfade a captured rendered frame into the new setup's framing. Camera reset keeps its own eased transition. Dragging avoids repeated layout reads, and unchanged LaTeX is not rendered again. Information equations render when the information dialog opens.
 - Playback defaults to one optical cycle (about $1.775\,\mathrm{fs}$) per five seconds. This is a continuous-wave steady state. A source turning on requires a broadband, time-dependent calculation; the app does not fake that by progressively revealing an already-computed field. No particle motion is implied by the arrows.
 
 To regenerate numerical data and thumbnails after changing an experiment:
@@ -133,13 +134,16 @@ node scripts/bake-fields.mjs
 node scripts/bake-vortex-lines.mjs
 node scripts/bake-elements.mjs
 node scripts/bake-previews.mjs
+node scripts/bake-spectra.mjs
 ```
 
-Existing full volumes can supply fresh aligned previews with `node scripts/refine-previews.mjs`. The element baker derives the relief meshes from the prescribed transmissions.
+Existing full volumes can supply fresh aligned previews with `node scripts/refine-previews.mjs`. Run `node scripts/bake-spectra.mjs` after changing full fields or previews. The element baker derives the relief meshes from the prescribed transmissions.
 
 The preparation command derives the binary mesh and coherent source sample from the original PLY. The field baker accepts experiment IDs to rebuild a subset. The preview baker updates transmission masks, calculated detector patterns and neutral phase surfaces, then generates the diagram thumbnails. These calculations stay out of setup-switch interactions.
 
 ## Validation
+
+The compact loading path has a separate all-sample comparison against all 56 stored preview/full volumes. On the tested WebGL implementation, the largest complex-field relative RMS difference was **0.0072%**, and the largest axial-flux relative RMS difference was **0.0165%**. These small Float32 FFT and binary16-rounding differences do not change the propagation model or grid. Run the local server and open `tests/browser/spectral-audit.html` to repeat the GPU audit; it reads the full reference library and reports pass/fail. The Node suite also checks every retained coefficient, both sides of the obstruction, aligned preview sampling, and cancellation.
 
 Thirty-nine tests check FFT normalization, modal and finite-difference Maxwell equations, independent propagation, conservation of integrated power, coherent interference and extinction, analytic far-field minima, three-dimensional longitudinal components, storage precision, continuous interpolation, focusing, vortex charge and nulls, padding convergence, all five holographic targets, petal rotation, the rendered vector coordinate mapping, coherent right-slit phase mixing, shared vector normalization, on-axis glyph coverage, rabbit image formation, tabulated Airy and Bessel values, helicon rotation, actual bunny depth dependence and concentration at its surface, and the optical-path phase of every shipped relief mesh. The rabbit target/flux correlation is 0.933 at the image plane, versus 0.724 and 0.741 at the ends of the volume.
 
@@ -167,6 +171,7 @@ The presentation refinement has a passing **39-test** run in `artifacts/refineme
 | `src/physics.js` | FFT and vector propagation core; retained reference fixtures |
 | `src/volume-data.js` | Binary16 storage, loading and CPU trilinear sampling |
 | `src/field-loader.worker.js` | Background decompression and display-data preparation |
+| `src/spectral-volume.js` | Worker GPU inverse FFT retaining the complete angular spectrum |
 | `src/energy-volume.js` | Scalar-density cache with interpolation correction |
 | `src/gpu-validation.js` | Opt-in texture-upload and GPU-sampling validation |
 | `src/render-shaders.js` | Volumetric fields, instantaneous vectors and detector flux |
@@ -199,6 +204,8 @@ The presentation refinement has a passing **39-test** run in `artifacts/refineme
 | `scripts/bake-vortex-lines.mjs` | Extract and verify the closed nodal curves from propagated fields |
 | `scripts/bake-previews.mjs` | Scientific experiment previews |
 | `tests/volumes.test.mjs` | Validation of the actual shipped 3D data |
+| `tests/spectra.test.mjs` | Complete coefficient preservation and cooperative energy preparation |
+| `tests/browser/spectral-audit.html` | Every-sample GPU reconstruction comparison against all reference volumes |
 | `tests/creative-fields.test.mjs` | Topology, distinct depth images, 3D target concentration and self-healing |
 
 The propagation follows the [angular-spectrum method](https://phys.libretexts.org/Bookshelves/Optics/BSc_Optics_(Konijnenberg_Adam_and_Urbach)/06%3A_Scalar_diffraction_optics/6.04%3A_Angular_Spectrum_Method). Experiment context: [three-dimensional holography](https://www.physics.nyu.edu/grierlab/publication/curtis02/) and [rotating optical petals](https://pure.strath.ac.uk/ws/portalfiles/portal/6008098/OpExFerrisWheel.pdf). Three.js and KaTeX are MIT licensed; their licenses are in `vendor/`. Runtime scripts, mathematical fonts and field data are served locally.

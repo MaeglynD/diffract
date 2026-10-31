@@ -34,7 +34,7 @@ export function setupSettings(scene,tex,initial='bunny'){
   app.dataset.palette=options.palette;app.dataset.settings=JSON.stringify(options);scene.applyAppearance(options);
  }
  let scheduled=0,pendingKey;
- const save=(changed,continuous=false)=>{if(changed)adjusted.add(changed);if(!continuous){const key=scheduled&&pendingKey!==changed?undefined:changed;cancelAnimationFrame(scheduled);scheduled=0;reflect(key);return;}pendingKey=scheduled&&pendingKey!==changed?undefined:changed;if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;reflect(pendingKey);});};
+ const save=(changed,continuous=false)=>{if(changed)adjusted.add(changed);if(!continuous){const key=scheduled&&pendingKey!==changed?undefined:changed;cancelAnimationFrame(scheduled);scheduled=0;if(['display','palette','planeSampling','phaseReference'].includes(changed))scene.captureTransition(260).then(()=>reflect(key));else reflect(key);return;}pendingKey=scheduled&&pendingKey!==changed?undefined:changed;if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;reflect(pendingKey);});};
  for(const el of document.querySelectorAll('[data-vector-toggle]'))el.addEventListener('click',()=>{let electric=options.vectors==='both'||options.vectors==='electric',magnetic=options.vectors==='both'||options.vectors==='magnetic';if(el.dataset.vectorToggle==='electric')electric=!electric;else magnetic=!magnetic;options.vectors=electric?(magnetic?'both':'electric'):(magnetic?'magnetic':'none');save('vectors');});
  for(const el of document.querySelectorAll('[data-option]'))el.addEventListener('click',()=>{options[el.dataset.option]=el.dataset.value;save(el.dataset.option);});
  for(const el of panel.querySelectorAll('[data-setting]'))el.addEventListener('input',()=>{const key=el.dataset.setting;options[key]=el.type==='checkbox'?el.checked:Number(el.value);save(key,el.type==='range');});
@@ -42,7 +42,17 @@ export function setupSettings(scene,tex,initial='bunny'){
  document.getElementById('reset-appearance').addEventListener('click',()=>{adjusted.clear();Object.assign(options,appearanceFor(current));reflect();});
  for(const button of panel.querySelectorAll('[data-camera]'))button.addEventListener('click',()=>scene.resetView(false,button.dataset.camera));
  const tabs=[...panel.querySelectorAll('[role=tab]')];
- function selectTab(tab){if(tab.getAttribute('aria-selected')==='true')return;for(const item of tabs){const active=item===tab;item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;const content=document.getElementById(item.getAttribute('aria-controls'));content.hidden=!active;if(active){content.getAnimations().forEach(a=>a.cancel());content.animate([{opacity:.35},{opacity:1}],{duration:160,easing:'ease-out'});}}panel.querySelector('.settings-content').scrollTop=0;}
+ let tabChange=0;
+ async function selectTab(tab){
+  if(tab.getAttribute('aria-selected')==='true')return;const version=++tabChange;
+  for(const item of tabs){const active=item===tab;item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;}
+  const panes=tabs.map(item=>document.getElementById(item.getAttribute('aria-controls'))),previous=panes.find(p=>!p.hidden);
+  for(const pane of panes)pane.getAnimations().forEach(a=>a.cancel());
+  if(previous){try{await previous.animate([{opacity:1},{opacity:0}],{duration:80,easing:'ease-in',fill:'forwards'}).finished;}catch{}if(version!==tabChange)return;}
+  for(const pane of panes){pane.hidden=pane.id!==tab.getAttribute('aria-controls');pane.getAnimations().forEach(a=>a.cancel());}
+  const next=document.getElementById(tab.getAttribute('aria-controls'));next.animate([{opacity:0},{opacity:1}],{duration:180,easing:'ease-out'});panel.querySelector('.settings-content').scrollTop=0;
+ }
+
  for(const tab of tabs){tab.addEventListener('click',()=>selectTab(tab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next]);tabs[next].focus();});}
  reflect();return{options,setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},useExperiment(id){current=id;for(const[key,value]of Object.entries(appearanceFor(id)))if(!adjusted.has(key))options[key]=value;reflect();},setPalette(palette){options.palette=palette;adjusted.add('palette');reflect();}};
 }
