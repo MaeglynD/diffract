@@ -7,7 +7,7 @@ import {GAP,GUIDE} from '../src/native-config.js';
 import {BRAGG} from '../src/bench-fields.js';
 import {color} from './preview-raster.mjs';
 const line=(d,extra='')=>`<path d="${d}" fill="none" stroke="#a2c5cf" stroke-opacity=".6" ${extra.includes('stroke-width')?'':'stroke-width="1.4"'} ${extra}/>`;
-for(const e of NATIVE_EXPERIMENTS){
+for(const e of NATIVE_EXPERIMENTS.filter(e=>!e.customPreview)){
  const spectral=e.spectralBench?prepareSpectralBench(e.id):null,model=spectral?null:LIVE_IDS.includes(e.id)?liveModel(e.id,LIVE_DEFAULT[e.id]):nativeModel(e.id),w=240,h=140,samples=new Float32Array(w*h),X=z=>z/e.zMax*w,Y=x=>(x/e.half/2+.5)*h;
  for(let i=0;i<w;i++){const z=i/(w-1)*e.zMax,p=spectral?benchPlane(spectral,z):null;for(let j=0;j<h;j++){const x=(j/(h-1)*2-1)*e.half;if(p){const at=spectral.n/2*spectral.n+Math.round(x*spectral.n/spectral.length+spectral.n/2);samples[j*w+i]=Math.hypot(p[0].re[at],p[0].im[at]);}else samples[j*w+i]=e.id==='absorber'?Math.abs(model.field(x,z)[0]):Math.sqrt(energyDensity(model.field(x,z),model.epsilon(x,z)));}}
  let hardware='';

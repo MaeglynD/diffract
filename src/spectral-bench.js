@@ -1,6 +1,7 @@
 import {fft2,modeVector,TAU as K} from './physics.js';
 import {HEADER_BYTES,fromHalf,toHalf} from './volume-data.js';
 import {SpectralVolume} from './spectral-volume.js';
+import {CORONA} from './lab-experiments.js';
 
 export const MICROSCOPE={f:20,aperture:10,dot:.85};
 export const ETALON={a:4,b:12,R:.88};
@@ -12,14 +13,31 @@ function advance(re,im,n,length,dz){const r=re.slice(),t=im.slice();for(let j=0;
 // The etalon's retained spectrum occupies only |m| < 21 in a 32λ window.
 // A 128 transform represents those same modes exactly, at the output's 0.25λ
 // spacing; a 256 transform only oversamples an identical band-limited field.
-export function prepareSpectralBench(id,n=id==='fabry-perot'?128:256){
+export function prepareSpectralBench(id,n=id.startsWith('phase-microscope')?256:128,coronaLength=32){
  const difference=id.endsWith('-bright');id=id.replace('-bright','');
- const length=id==='phase-microscope'?64:32,size=n*n,regions=[];
+ const length=id==='phase-microscope'?64:id==='coronagraph'?coronaLength:32,size=n*n,regions=[];
  let re=new Float64Array(size),im=new Float64Array(size);
- for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=(i-n/2)*length/n,y=(j-n/2)*length/n,p=j*n+i,amplitude=Math.exp(-(x*x+y*y)/(id==='phase-microscope'?110:3.24)),phase=id==='phase-microscope'?specimenPhase(x,y):0;re[p]=amplitude*Math.cos(phase);im[p]=amplitude*Math.sin(phase);}
+ for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=(i-n/2)*length/n,y=(j-n/2)*length/n,p=j*n+i;
+  let amplitude=Math.exp(-(x*x+y*y)/(id==='phase-microscope'?110:3.24)),phase=id==='phase-microscope'?specimenPhase(x,y):0;
+  if(id==='coronagraph'){amplitude=circlePixel(x,y,CORONA.pupil,length/n);phase=difference?K*CORONA.tilt*x:0;}
+  re[p]=amplitude*Math.cos(phase);im[p]=amplitude*Math.sin(phase);}
  fft2(re,im,n);bandlimit(re,im,n,length);
  const region=(z,r,t,backR=null,backI=null)=>{const data=new Float32Array(size*4);for(let p=0;p<size;p++){data[p*4]=r[p];data[p*4+1]=t[p];data[p*4+2]=backR?.[p]||0;data[p*4+3]=backI?.[p]||0;}regions.push({z,data});};
- if(id==='phase-microscope'){
+ if(id==='coronagraph'){
+  // Pupil → Fourier plane (phase vortex) → reimaged pupil (Lyot stop)
+  // → camera. The camera lens and stop share the last pupil plane.
+  region(0,re,im);
+  for(let station=1;station<=4;station++){
+   [re,im]=advance(re,im,n,length,CORONA.f);
+   for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+    const p=j*n+i,x=(i-n/2)*length/n,y=(j-n/2)*length/n,r2=x*x+y*y;
+    const phase=station===2?(r2<CORONA.mask**2?2*Math.atan2(y,x):0):-K*r2/(2*CORONA.f);
+    const amp=station===2?(r2===0?0:1):circlePixel(x,y,station===4?CORONA.stop:CORONA.lens,length/n);
+    const c=amp*Math.cos(phase),s=amp*Math.sin(phase),a=re[p],b=im[p];re[p]=c*a-s*b;im[p]=c*b+s*a;
+   }
+   fft2(re,im,n);bandlimit(re,im,n,length);region(station*CORONA.f,re,im);
+  }
+ }else if(id==='phase-microscope'){
   region(0,re,im);let previous=0;
   for(const z of[20,40,60]){[re,im]=advance(re,im,n,length,z-previous);for(let j=0;j<n;j++)for(let i=0;i<n;i++){const p=j*n+i,x=(i-n/2)*length/n,y=(j-n/2)*length/n,r=Math.hypot(x,y),phase=z===40?(!difference&&r<MICROSCOPE.dot?Math.PI/2:0):-K*r*r/(2*MICROSCOPE.f),amp=z===40?(!difference&&r<MICROSCOPE.dot?.55:1):(r<MICROSCOPE.aperture?1:0),a=re[p],b=im[p];re[p]=amp*(a*Math.cos(phase)-b*Math.sin(phase));im[p]=amp*(a*Math.sin(phase)+b*Math.cos(phase));}fft2(re,im,n);bandlimit(re,im,n,length);region(z,re,im);previous=z;}
  }else{
@@ -32,8 +50,13 @@ export function prepareSpectralBench(id,n=id==='fabry-perot'?128:256){
    }region(z,fR,fI,bR,bI);
   }
  }
- if(difference){const base=prepareSpectralBench(id,n);for(let r=0;r<regions.length;r++)for(let p=0;p<regions[r].data.length;p++)regions[r].data[p]-=base.regions[r].data[p];}
+ if(difference){const base=prepareSpectralBench(id,n,coronaLength);for(let r=0;r<regions.length;r++)for(let p=0;p<regions[r].data.length;p++)regions[r].data[p]-=base.regions[r].data[p];}
  return{n,length,regions};
+}
+function circlePixel(x,y,r,dx){
+ const d=Math.hypot(x,y);if(d<=r-.71*dx)return 1;if(d>=r+.71*dx)return 0;let inside=0;
+ for(let j=0;j<4;j++)for(let i=0;i<4;i++)inside+=Math.hypot(x+((i+.5)/4-.5)*dx,y+((j+.5)/4-.5)*dx)<r;
+ return inside/16;
 }
 // Same vector angular-spectrum relation as the original solver, extended to
 // both directions. Backward Ez, Bx and By reverse; Ey and Bz retain their sign.

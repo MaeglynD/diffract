@@ -46,23 +46,25 @@ vec3 texturePoint(vec3 p){return volumeUv(vec2(-p.z/(2.*halfWidth)+.5,p.y/(2.*ha
 vec3 phaseColor(float phi){return .55+.43*cos(phi+phaseHue+vec3(0.,2.094395,4.18879));}
 vec3 energyColor(float value){vec3 tint=mix(lowColor,midColor,clamp(value,0.,1.));return mix(tint,highColor,clamp((value-.55)*1.4,0.,.7));}
 uniform vec2 detectorExtent;uniform float detectorZ,peak,detectorOpacity;uniform vec2 probe;uniform bool showProbe;uniform int nodalCount;uniform vec2 nodalPoints[12];
-vec4 samplePlane(vec2 xy){
- if(nativeField&&densityDetector&&abs((xy.y-.5)*2.*halfWidth)>viewHeight)return vec4(.008,.021,.033,0.);
- vec3 uv=volumeUv(xy,detectorZ);
+uniform vec2 planProbe;
+vec4 samplePlane(vec2 xy,float sampleZ,vec2 probeCoord,bool plan){
+ if(nativeField&&(abs((xy.y-.5)*2.*halfWidth)>viewHeight||sampleZ<0.||sampleZ>zMax))return vec4(.008,.021,.033,0.);
+ vec3 uv=volumeUv(xy,sampleZ);
  vec2 e=electricAt(uv).rg,b=vec2(0.);
  if(displayMode==1)b=magneticAt(uv).rg;
- if(interferenceEnabled&&(linearMix?auxiliaryMix!=0.:slitPhase!=0.)){vec3 ruv=(vec3(xy,detectorZ/zMax)*(rightDimensions-1.)+.5)/rightDimensions;e+=phaseDelta(texture(rightElectric,ruv).rg);if(displayMode==1)b+=phaseDelta(texture(rightMagnetic,ruv).rg);}
- float value;vec3 color;float carrier=6.28318530718*detectorZ-timePhase;
- if(displayMode==1){float quantity=max(0.,-dot(e,b));if(densityDetector){if(interferenceEnabled&&(linearMix?auxiliaryMix!=0.:slitPhase!=0.)){vec3 ruv=(vec3(xy,detectorZ/zMax)*(rightDimensions-1.)+.5)/rightDimensions;vec4 ee=electricAt(uv),bb=magneticAt(uv),er=texture(rightElectric,ruv),br=texture(rightMagnetic,ruv);vec2 bz=extraAt(uv).rg+phaseDelta(texture(rightExtra,ruv).rg);ee+=vec4(phaseDelta(er.rg),phaseDelta(er.ba));bb+=vec4(phaseDelta(br.rg),phaseDelta(br.ba));quantity=.5*(dot(ee,ee)+dot(bb,bb)+dot(bz,bz));}else{vec4 d=energyAt(uv);vec3 f=fract(vec3(xy*(dimensions.xy-1.),axialIndex(detectorZ)));quantity=max(0.,d.r-.5*dot(f*(1.-f),d.gba));}}value=pow(clamp(quantity*exposure/max(peak,.000001),0.,1.),.43);color=mix(vec3(.008,.021,.033),energyColor(value),smoothstep(0.,.7,value));}
+ if(interferenceEnabled&&(linearMix?auxiliaryMix!=0.:slitPhase!=0.)){vec3 ruv=(vec3(xy,sampleZ/zMax)*(rightDimensions-1.)+.5)/rightDimensions;e+=phaseDelta(texture(rightElectric,ruv).rg);if(displayMode==1)b+=phaseDelta(texture(rightMagnetic,ruv).rg);}
+ float value;vec3 color;float carrier=6.28318530718*sampleZ-timePhase;
+ if(displayMode==1){float quantity=max(0.,-dot(e,b));if(densityDetector){if(interferenceEnabled&&(linearMix?auxiliaryMix!=0.:slitPhase!=0.)){vec3 ruv=(vec3(xy,sampleZ/zMax)*(rightDimensions-1.)+.5)/rightDimensions;vec4 ee=electricAt(uv),bb=magneticAt(uv),er=texture(rightElectric,ruv),br=texture(rightMagnetic,ruv);vec2 bz=extraAt(uv).rg+phaseDelta(texture(rightExtra,ruv).rg);ee+=vec4(phaseDelta(er.rg),phaseDelta(er.ba));bb+=vec4(phaseDelta(br.rg),phaseDelta(br.ba));quantity=.5*(dot(ee,ee)+dot(bb,bb)+dot(bz,bz));}else{vec4 d=energyAt(uv);vec3 f=fract(vec3(xy*(dimensions.xy-1.),axialIndex(sampleZ)));quantity=max(0.,d.r-.5*dot(f*(1.-f),d.gba));}}value=pow(clamp(quantity*exposure/max(peak,.000001),0.,1.),.43);color=mix(vec3(.008,.021,.033),energyColor(value),smoothstep(0.,.7,value));}
  else if(displayMode==0){float v=planeSampling==0?length(e)*.70710678118:dot(e,vec2(cos(carrier),-sin(carrier)));value=pow(clamp(abs(v)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),v>=0.?positiveColor:negativeColor,value);}
  else{float phi=atan(e.y,e.x)+(phaseReference==1?carrier:0.);value=pow(clamp(length(e)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),phaseColor(phi),value);}
  float annotationAlpha=0.;for(int i=0;i<12;i++){if(i>=nodalCount)break;float d=length((xy-nodalPoints[i])*2.*halfWidth),mark=1.-smoothstep(.035,.075,abs(d-.19));color=mix(color,vec3(.88,.98,1.),mark*.9);annotationAlpha=max(annotationAlpha,mark*.94);}
- if(showProbe){float ring=1.-smoothstep(.001,.004,abs(length(xy-probe)-.022));color=mix(color,vec3(.85,.97,1.),ring*.85);}
+ if(showProbe){float ring=1.-smoothstep(.001,.004,abs(length(probeCoord-(plan?planProbe:probe))-.022));color=mix(color,vec3(.85,.97,1.),ring*.85);}
  return vec4(color,max(detectorOpacity*(.035+.965*value),annotationAlpha));
 }
 
-uniform bool isPreview;uniform float previewAlpha,detectorZoom;in vec2 vUv;out vec4 outColor;
-void main(){outColor=samplePlane(isPreview?(vUv-.5)/detectorZoom+.5:vUv);if(isPreview)outColor.a=previewAlpha;}
+uniform bool isPreview,planPreview;uniform float previewAlpha,detectorZoom,previewAspect;in vec2 vUv;out vec4 outColor;
+void main(){vec2 p=isPreview?(vUv-.5)/vec2(detectorZoom,detectorZoom*previewAspect)+.5:vUv;bool plan=isPreview&&planPreview;
+ outColor=samplePlane(plan?vec2(p.x,.5):p,plan?zMax*.5+(p.y-.5)*2.*halfWidth:detectorZ,p,plan);if(isPreview)outColor.a=previewAlpha;}
 `;
 
 export const detectorVertex=`out vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;

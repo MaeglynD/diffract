@@ -1,3 +1,5 @@
+/* Preserve physical aspect in the wide observation window of the laser sheet. */
+#app[data-experiment="sound-cell"] #detector-image{aspect-ratio:2.8}
 /* A fixed image row and a top-aligned, reserved two-line caption. */
 .experiment{--thumb-height:80px;--thumb-inset:7px;--thumb-radius:12px;display:grid;grid-template-rows:var(--thumb-height) 39px;align-content:start;align-items:start;row-gap:15px}
 .experiment img{height:var(--thumb-height)!important;min-height:0;width:100%;object-fit:contain}

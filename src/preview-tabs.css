@@ -11,7 +11,7 @@
 .detector-window .mode-symbol{display:none}
 .detector-window #detector-image{border-radius:0 0 5px 5px;box-shadow:none}
 .detector-window #detector-quantity{font-size:9px;opacity:.7;background:transparent}
-#focus-stops[data-setup=phase-microscope] button{font-size:9px;min-height:30px}
+:is(#focus-stops[data-setup=phase-microscope],#focus-stops[data-setup=coronagraph]) button{font-size:9px;min-height:30px}
 @media(min-width:1500px){.detector-window .view-modes button{font-size:11px;min-height:38px}}
 @media(max-width:900px){.detector-window .view-modes button{font-size:9px}}
 @media(max-width:650px){.detector-window .view-modes button{font-size:8px;padding:9px 1px;min-height:34px}}

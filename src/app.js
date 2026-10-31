@@ -36,9 +36,9 @@ for(const img of gallery.querySelectorAll('img'))thumbnailObserver.observe(img);
 const centerSelection=setupGalleryMotion(gallery);
 let focusSeek=null,scanHold=0;
 function configureFocusStops(id){
- const strip=$('focus-stops'),microscope=id==='phase-microscope';strip.hidden=id!=='metamorphosis'&&!microscope;if(strip.dataset.setup===id)return;strip.dataset.setup=id;strip.setAttribute('aria-label',microscope?'Microscope observation planes':'Hologram image planes');strip.replaceChildren();if(strip.hidden)return;
- const depths=microscope?[.5,40,80]:IMAGE_DEPTHS,names=microscope?['Specimen','Fourier plane','Image']:IMAGE_NAMES;
- depths.forEach((z,i)=>{const b=document.createElement('button');b.type='button';b.dataset.focus=String(z);b.setAttribute('aria-label',names[i]+' focus');b.title=names[i];b.setAttribute('aria-pressed','false');b.innerHTML=microscope?'<span>'+names[i]+'</span>':imageIcon(i);b.addEventListener('click',()=>{state.sweeping=false;updateSweep();focusSeek={from:state.z,to:z,start:performance.now()};scene.cameraTween=null;scene.transitionStart=0;});strip.append(b);});
+ const strip=$('focus-stops'),planes=experiment(id).interaction?.planes;strip.hidden=id!=='metamorphosis'&&!planes;if(strip.dataset.setup===id)return;strip.dataset.setup=id;strip.setAttribute('aria-label',planes?'Observation planes':'Hologram image planes');strip.replaceChildren();if(strip.hidden)return;
+ const depths=planes?planes.map(p=>p[0]):IMAGE_DEPTHS,names=planes?planes.map(p=>p[1]):IMAGE_NAMES;
+ depths.forEach((z,i)=>{const b=document.createElement('button');b.type='button';b.dataset.focus=String(z);b.setAttribute('aria-label',names[i]+' focus');b.title=names[i];b.setAttribute('aria-pressed','false');b.innerHTML=planes?'<span>'+names[i]+'</span>':imageIcon(i);b.addEventListener('click',()=>{state.sweeping=false;updateSweep();focusSeek={from:state.z,to:z,start:performance.now()};scene.cameraTween=null;scene.transitionStart=0;});strip.append(b);});
 }
 
 function loading(message,refining=false){$('loading').classList.toggle('ready',!message);$('loading').classList.toggle('refining',refining);$('loading-text').textContent=message||'';}
@@ -82,7 +82,7 @@ async function selectExperiment(id,fromHistory=false){
  for(const[key,controller]of controllers)if(!key.startsWith(id+':')){controller.abort();controllers.delete(key);pending.delete(key);}
  $('error').hidden=true;$('error').textContent='';markRequest(id,true);loadProgress(id,0);
  centerSelection(gallery.querySelector('[data-experiment="'+id+'"]'));
- if(state.id===id&&volume?.quality==='full'){scene.computing=false;markRequest(id,false);loading('');return;}
+ if(state.id===id&&volume?.quality==='full'){scene.computing=false;markRequest(id,false);loading('');if((e.interaction?.aux||id==='double')&&!scene.auxiliary)loadSlitPartner(generation);return;}
  $('app').dataset.selectedAt=String(performance.now());delete $('app').dataset.fullFieldMs;loading('Preparing field',!!volume);scene.computing=true;
  // Let the pressed state paint before any apparatus construction starts.
  await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));if(generation!==selection)return;
@@ -103,10 +103,10 @@ async function selectExperiment(id,fromHistory=false){
    await scene.captureTransition(420);if(!active()){gpu?.forEach(t=>t.dispose());return;}showVolume(e,detailed,gpu);gpu=null;
   }
   scene.computing=false;$('app').dataset.fullFieldMs=(performance.now()-Number($('app').dataset.selectedAt)).toFixed(1);
-  if(['double','phase-microscope'].includes(id))loadSlitPartner(generation);else warmSpectra(id,generation);
+  if(id==='double'||e.interaction?.aux)loadSlitPartner(generation);else warmSpectra(id,generation);
  }catch(error){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);if(active()){scene.computing=false;requestedId=null;markRequest(state.id,false);fail(error);}}
 }
-async function loadSlitPartner(generation){try{const data=await acquire(state.id==='phase-microscope'?'phase-microscope-bright':'double-right','full');if(generation!==selection)return;const gpu=await scene.uploadVolume(data,()=>generation===selection);if(generation!==selection){gpu?.forEach(t=>t.dispose());return;}scene.setAuxiliary(data,gpu);if(state.id==='phase-microscope'){scene.setComparison(state.comparison);for(const b of document.querySelectorAll('[data-contrast]'))b.disabled=false;}$('slit-phase').disabled=false;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=false;}catch(error){if(generation===selection)fail(error);}}
+async function loadSlitPartner(generation){try{const data=await acquire(experiment(state.id).interaction?.aux||'double-right','full');if(generation!==selection)return;const gpu=await scene.uploadVolume(data,()=>generation===selection);if(generation!==selection){gpu?.forEach(t=>t.dispose());return;}scene.setAuxiliary(data,gpu);if(experiment(state.id).interaction?.aux){scene.setComparison(state.comparison);for(const b of document.querySelectorAll('[data-contrast]'))b.disabled=false;}$('slit-phase').disabled=false;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=false;}catch(error){if(generation===selection)fail(error);}}
 function setSlitPhase(value){state.slitPhase=Number(value)/1000*Math.PI;$('slit-phase').value=value;paintRange($('slit-phase'));tex($('slit-phase-value'),String.raw`\delta=${(state.slitPhase/Math.PI).toFixed(2)}\pi`);scene.setSlitPhase(state.slitPhase);probeDirty=true;}
 function showVolume(e,data,gpu,prepared){volume=data;scene.setExperiment(e,data,gpu,prepared);$('app').dataset.loadMetrics=JSON.stringify(data.loadMetrics);scene.setDistance(state.z);scene.setSlitPhase(state.slitPhase);scene.setProbe(state.probe);probeDirty=true;}
 const warmed=new Set();
@@ -121,11 +121,15 @@ function setDistance(z,manual=true){
  state.z=Math.max(.5,Math.min(experiment(state.id).zMax,z));$('distance').value=state.z;paintRange($('distance'));$('inspection-distance').value=state.z;paintRange($('inspection-distance'));
  if(manual){scene.cameraTween=null;scene.transitionStart=0;}scene.setDistance(state.z);labelDirty=probeDirty=true;if(manual)latestDrag=lastInteraction=performance.now();
  $('app').dataset.distance=state.z.toFixed(4);if(manual)$('app').dataset.cameraAtInput=scene.camera.position.toArray().join(',');
- if(['metamorphosis','phase-microscope'].includes(state.id))for(const button of $('focus-stops').children){const active=Math.abs(state.z-Number(button.dataset.focus))<1.8;if(button.getAttribute('aria-pressed')!==String(active))button.setAttribute('aria-pressed',String(active));}
+ if(!$('focus-stops').hidden)for(const button of $('focus-stops').children){const active=Math.abs(state.z-Number(button.dataset.focus))<1.8;if(button.getAttribute('aria-pressed')!==String(active))button.setAttribute('aria-pressed',String(active));}
 }
 function configureInteraction(e){const c=e.interaction,kind=c?.kind;$('experiment-control').hidden=!['parameter','cycle'].includes(kind);$('comparison-control').hidden=kind!=='comparison';$('absorption-meter').hidden=e.id!=='absorber';document.querySelector('.distance-control').dataset.secondary=String(!!kind&&kind!=='distance');$('inspection-setting').hidden=!kind||kind==='distance';$('inspection-distance').max=e.zMax;$('inspection-distance').value=state.z;paintRange($('inspection-distance'));
  const input=$('experiment-parameter');if(kind==='parameter'){const sign=c.sliderSign??1;input.min=sign>0?c.min:-c.max;input.max=sign>0?c.max:-c.min;input.step=c.step;$('experiment-control-label').textContent=c.label;input.setAttribute('aria-label',c.label);setParameter(c.initial,false);}else if(kind==='cycle'){input.min=0;input.max=2*Math.PI;input.step=.005;$('experiment-control-label').textContent='Optical cycle';input.setAttribute('aria-label','Optical cycle');}
- for(const b of document.querySelectorAll('[data-contrast]')){b.disabled=true;b.setAttribute('aria-pressed',String(b.dataset.contrast==='0'));}
+ if(kind==='comparison'){
+  const group=$('comparison-control');group.setAttribute('aria-label',c.label);
+  for(const i of e.id==='coronagraph'?[0,1]:[1,0])group.append(group.querySelector('[data-contrast="'+i+'"]'));
+ }
+ for(const b of document.querySelectorAll('[data-contrast]')){if(kind==='comparison')b.textContent=c.choices[Number(b.dataset.contrast)];b.disabled=true;b.setAttribute('aria-pressed',String(b.dataset.contrast==='0'));}
  $('detector-handle').title=e.id==='michelson'?'Move delay mirror':e.id==='grin'?'Move launch position':'Move detector';$('detector-handle').setAttribute('aria-label',e.id==='michelson'?'Move delay mirror':e.id==='grin'?'Move launch position':'Drag detector');scene.updatePreviewRect();
 }
 function setParameter(value,manual=true){const c=experiment(state.id).interaction;if(c?.kind!=='parameter')return;state.parameter=Math.max(c.min,Math.min(c.max,Number(value)));scene.setExperimentParameter(state.parameter);$('experiment-parameter').value=state.parameter*(c.sliderSign??1);paintRange($('experiment-parameter'));if(manual){state.sweeping=false;updateSweep();lastInteraction=performance.now();}labelDirty=probeDirty=true;if(state.id==='absorber'){const a=absorbedFraction(state.parameter);$('absorption-meter').style.setProperty('--absorption',a);$('absorbed-value').textContent=Math.round(a*100)+'%';}}
@@ -134,16 +138,17 @@ $('experiment-parameter').addEventListener('input',event=>{if(experiment(state.i
 $('inspection-distance').addEventListener('input',event=>{state.sweeping=false;updateSweep();setDistance(Number(event.target.value));});
 for(const b of document.querySelectorAll('[data-contrast]'))b.addEventListener('click',()=>setComparison(b.dataset.contrast));
 if(scene)scene.onParameter=value=>setParameter(value);
+function parameterTex(c,v){return c.unit==='rad'?`${c.symbol}=${v.toFixed(2)}\\,\\mathrm{rad}`:`${c.symbol}=${(v*180/Math.PI).toFixed(0)}^{\\circ}`;}
 function updateDistanceLabel(){
- const kind=experiment(state.id).interaction?.kind;if(kind==='parameter')tex($('experiment-value'),state.id==='absorber'?String.raw`\delta=${(state.parameter/Math.PI).toFixed(2)}\pi`:String.raw`${state.id==='michelson'?String.raw`\Delta z_{\rm m}`:'x_0'}=${(state.parameter*(experiment(state.id).interaction.sliderSign??1)).toFixed(2)}\lambda`);else if(kind==='cycle')tex($('experiment-value'),String.raw`\omega t=${(state.phase/Math.PI).toFixed(2)}\pi`);
+ const kind=experiment(state.id).interaction?.kind;if(kind==='parameter')tex($('experiment-value'),experiment(state.id).interaction.symbol?parameterTex(experiment(state.id).interaction,state.parameter):state.id==='absorber'?String.raw`\delta=${(state.parameter/Math.PI).toFixed(2)}\pi`:String.raw`${state.id==='michelson'?String.raw`\Delta z_{\rm m}`:'x_0'}=${(state.parameter*(experiment(state.id).interaction.sliderSign??1)).toFixed(2)}\lambda`);else if(kind==='cycle')tex($('experiment-value'),String.raw`\omega t=${(state.phase/Math.PI).toFixed(2)}\pi`);
 tex($('distance-value'),String.raw`z=${state.z.toFixed(1)}\lambda`);tex($('physical-distance'),String.raw`${(state.z*.532).toFixed(2)}\,\mu\mathrm m`);$('distance').setAttribute('aria-valuetext',`${state.z.toFixed(1)} wavelengths`);labelDirty=false;}
-function setProbe(point){if(point&&state.id==='circulator'&&Math.abs(point.y)>experiment(state.id).viewHeight)point=null;state.probe=point;scene?.setProbe(point);$('probe-readout').hidden=!point;$('clear-probe').hidden=!point;scene?.updatePreviewRect();probeDirty=true;}
+function setProbe(point){if(point&&['sound-cell','circulator'].includes(state.id)&&Math.abs(point.y)>experiment(state.id).viewHeight)point=null;state.probe=point;scene?.setProbe(point);$('probe-readout').hidden=!point;$('clear-probe').hidden=!point;scene?.updatePreviewRect();probeDirty=true;}
 const probeSample=new Float32Array(10);
 function number(n){if(Math.abs(n)<1e-7)return '0';if(Math.abs(n)<.001){const [a,b]=n.toExponential(1).split('e');return `${a}\\!\\times\\!10^{${Number(b)}}`;}return n.toFixed(3);}
 function updateProbe(){
  if(!state.probe||!volume)return;
- sampleField(volume,state.probe.x,state.probe.y,state.z,probeSample);if(scene.auxiliary&&state.id==='phase-microscope'){const aux=sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z);for(let c=0;c<10;c++)probeSample[c]+=state.comparison*aux[c];}if(scene.auxiliary&&state.id==='double')mixSlitPhase(probeSample,sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z),state.slitPhase);const phase=TAU*state.z-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
- tex($('probe-coordinates'),String.raw`(x,y)=(${state.probe.x.toFixed(1)},${state.probe.y.toFixed(1)})\lambda`);
+ const probeZ=state.probe.z??state.z;sampleField(volume,state.probe.x,state.probe.y,probeZ,probeSample);if(scene.auxiliary&&experiment(state.id).interaction?.aux){const aux=sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z);for(let c=0;c<10;c++)probeSample[c]+=state.comparison*aux[c];}if(scene.auxiliary&&state.id==='double')mixSlitPhase(probeSample,sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z),state.slitPhase);const phase=TAU*probeZ-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
+ tex($('probe-coordinates'),state.probe.z!=null?String.raw`(x,z)=(${state.probe.x.toFixed(1)},${probeZ.toFixed(1)})\lambda`:String.raw`(x,y)=(${state.probe.x.toFixed(1)},${state.probe.y.toFixed(1)})\lambda`);
  tex($('probe-electric'),String.raw`\frac{\mathbf E}{E_0}=\bigl(0,\,${number(real(0))},\,${number(real(2))}\bigr)`);
  tex($('probe-magnetic'),String.raw`\frac{c\mathbf B}{E_0}=\bigl(${number(real(4))},\,${number(real(6))},\,${number(real(8))}\bigr)`);
  tex($('probe-flux'),String.raw`\langle S_z\rangle/I_0=${number(normalizedFlux(probeSample))}`);probeDirty=false;
@@ -154,7 +159,7 @@ function togglePlay(){state.playing=!state.playing;updatePlay();updateSweep();}
 $('play').addEventListener('click',togglePlay);$('reset').addEventListener('click',()=>scene?.resetView(false));
 $('distance').addEventListener('input',e=>{state.sweeping=false;updateSweep();setDistance(Number(e.target.value));});
 $('slit-phase').addEventListener('input',e=>setSlitPhase(e.target.value));for(const b of document.querySelectorAll('[data-slit-phase]'))b.addEventListener('click',()=>setSlitPhase(b.dataset.slitPhase));
-function updateSweep(){const kind=experiment(state.id).interaction?.kind,active=kind==='cycle'?state.playing:state.sweeping,action=kind==='parameter'?'experiment motion':kind==='cycle'?'optical cycle':kind==='comparison'?'contrast comparison':'detector scan',label=(active?'Pause ':'Play ')+action;$('sweep').setAttribute('aria-pressed',String(active));$('sweep').setAttribute('aria-label',label);$('sweep').title=label;$('sweep-path').setAttribute('d',active?'M7 4v12m6-12v12':'M6 3l10 7-10 7z');}
+function updateSweep(){const kind=experiment(state.id).interaction?.kind,active=kind==='cycle'?state.playing:state.sweeping,action=kind==='parameter'?'experiment motion':kind==='cycle'?'optical cycle':kind==='comparison'?(experiment(state.id).interaction?.label||'comparison'):'detector scan',label=(active?'Pause ':'Play ')+action;$('sweep').setAttribute('aria-pressed',String(active));$('sweep').setAttribute('aria-label',label);$('sweep').title=label;$('sweep-path').setAttribute('d',active?'M7 4v12m6-12v12':'M6 3l10 7-10 7z');}
 function toggleSweep(){focusSeek=null;if(experiment(state.id).interaction?.kind==='cycle'){state.playing=!state.playing;updatePlay();}else state.sweeping=!state.sweeping;updateSweep();}
 $('sweep').addEventListener('click',toggleSweep);
 $('stage').addEventListener('pointermove',e=>{if(e.buttons)lastInteraction=performance.now();});
@@ -162,9 +167,10 @@ $('clear-probe').addEventListener('click',()=>setProbe(null));
 let probing=false;
 $('detector-image').addEventListener('wheel',event=>{event.preventDefault();settings.setDetectorZoom(appearance.detectorZoom*Math.exp(-event.deltaY*.002));},{passive:false});
 $('detector-image').addEventListener('dblclick',()=>settings.setDetectorZoom(1));
-function probeFromPointer(e){const r=$('detector-image').getBoundingClientRect(),half=experiment(state.id).half/appearance.detectorZoom;setProbe({x:Math.max(-half,Math.min(half,((e.clientX-r.left)/r.width*2-1)*half)),y:Math.max(-half,Math.min(half,(1-(e.clientY-r.top)/r.height*2)*half))});}
+function previewProbe(x,y){const e=experiment(state.id);if(e.planPreview){const z=e.zMax/2+y;setProbe(z<0||z>e.zMax?null:{x,y:0,z});}else setProbe({x,y:y/(e.id==='sound-cell'?2.8:1)});}
+function probeFromPointer(e){const r=$('detector-image').getBoundingClientRect(),half=experiment(state.id).half/appearance.detectorZoom;previewProbe(Math.max(-half,Math.min(half,((e.clientX-r.left)/r.width*2-1)*half)),Math.max(-half,Math.min(half,(1-(e.clientY-r.top)/r.height*2)*half)));}
 $('detector-image').addEventListener('pointerdown',e=>{probing=true;e.currentTarget.setPointerCapture(e.pointerId);probeFromPointer(e);});$('detector-image').addEventListener('pointermove',e=>{if(probing)probeFromPointer(e);});$('detector-image').addEventListener('pointerup',()=>probing=false);$('detector-image').addEventListener('pointercancel',()=>probing=false);
-$('detector-image').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const half=experiment(state.id).half/appearance.detectorZoom,p=state.probe||{x:0,y:0},step=half/30;setProbe({x:Math.max(-half,Math.min(half,p.x+(e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0))),y:Math.max(-half,Math.min(half,p.y+(e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0)))});});
+$('detector-image').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const half=experiment(state.id).half/appearance.detectorZoom,p=state.probe||{x:0,y:0},step=half/30,y=p.z!=null?p.z-experiment(state.id).zMax/2:p.y*(state.id==='sound-cell'?2.8:1);previewProbe(Math.max(-half,Math.min(half,p.x+(e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0))),Math.max(-half,Math.min(half,y+(e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0))));});
 function openDetails(){warmDetails();if(detailsDirty)updateDetails();const dialog=$('equations');dialog.getAnimations().forEach(a=>a.cancel());dialog.showModal();dialog.animate([{opacity:0},{opacity:1}],{duration:220,easing:'ease-out'});}function closeDetails(){const dialog=$('equations');dialog.getAnimations().forEach(a=>a.cancel());dialog.animate([{opacity:1},{opacity:0}],{duration:160,easing:'ease-out'}).finished.then(()=>dialog.close()).catch(()=>{});}$('details').addEventListener('click',openDetails);$('optic-label').addEventListener('click',openDetails);$('close-details').addEventListener('click',closeDetails);$('equations').addEventListener('cancel',event=>{event.preventDefault();closeDetails();});
 $('equations').addEventListener('click',e=>{if(e.target!==$('equations'))return;const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDetails();});
 $('phase').addEventListener('input',e=>{state.phase=Number(e.target.value)/1000*TAU;state.playing=false;updatePlay();updateSweep();probeDirty=true;});

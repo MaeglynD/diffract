@@ -1,0 +1,20 @@
+import {writeFile} from 'node:fs/promises';
+import {acousticModel,drumModel,DRUM,drumHeight} from '../src/resonant-instruments.js';
+import {prepareSpectralBench,benchPlane} from '../src/spectral-bench.js';
+import {color,png} from './preview-raster.mjs';
+const line=(d,stroke='#94bac7',width=1.4)=>`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linejoin="round"/>`;
+const im=(href,x,y,w,h)=>`<image href="${href}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none"/>`;
+async function write(id,body){await writeFile(new URL('../assets/previews/'+id+'.svg',import.meta.url),`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="184" viewBox="0 0 320 184">${body}</svg>`);}
+const e=acousticModel(1.72),w=204,h=124,v=new Float32Array(w*h),slice=new Float32Array(100*52);
+for(let j=0;j<h;j++)for(let i=0;i<w;i++){const f=e.field((j/(h-1)*2-1)*22,i/(w-1)*45);v[j*w+i]=Math.hypot(f[0],f[1]);}
+for(let j=0;j<52;j++)for(let i=0;i<100;i++){const f=e.field((i/99*2-1)*22,43);slice[j*100+i]=Math.abs(j-25.5)<10?Math.hypot(f[0],f[1]):0;}
+await write('sound-cell',`<g transform="matrix(.95 -.17 .22 .64 4 63)">${im(color(v,w,h),0,0,w,h)}${line('M13 21v83M9 21v83','#a1c9cc',2)}${line('M9 105h9','#b68d67',5)}</g>${im(color(slice,100,52),230,58,85,64)}${line('M230 58h85v64h-85z','#2c404a',1)}`);
+const m=drumModel(.13),n=184,pix=new Uint8Array(n*n*4);
+for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=(2*i/(n-1)-1)*(DRUM.side/2+.12),z=DRUM.base+drumHeight*(1-j/(n-1)),f=m.field(x,z);
+ const u=Math.min(1,Math.hypot(f[0],f[1])),phase=Math.atan2(f[1],f[0]),p=(j*n+i)*4;
+ for(let c=0;c<3;c++)pix[p+c]=18+205*u*(.55+.43*Math.cos(phase+c*2*Math.PI/3));pix[p+3]=Math.abs(x)+(z-DRUM.base)/Math.sqrt(3)<=DRUM.side/2?255:0;}
+const tri=png(n,n,pix);
+await write('light-billiard',`<g transform="matrix(1 -.04 .25 .64 39 37)">${im(tri,0,0,206,167)}${line('M103 0 4 167h198z','#a6a397',2.3)}${line('M4 167v8h198v-8M4 175 103 8l99 167','#55717d',1.4)}</g>`);
+const model=prepareSpectralBench('coronagraph'),n2=104,values=new Float32Array(n2*n2),plane=benchPlane(model,55.5);
+for(let j=0;j<n2;j++)for(let i=0;i<n2;i++){const p=(64+Math.round((j/(n2-1)*2-1)*33))*128+64+Math.round((i/(n2-1)*2-1)*33);values[j*n2+i]=Math.sqrt(Math.max(0,-(plane[0].re[p]*plane[2].re[p]+plane[0].im[p]*plane[2].im[p])));}
+await write('coronagraph',`<defs><linearGradient id="beam"><stop stop-color="#aedfe2" stop-opacity=".04"/><stop offset=".53" stop-color="#9acce2" stop-opacity=".4"/><stop offset="1" stop-color="#70b1cb" stop-opacity=".07"/></linearGradient></defs><path d="M7 78l60-13 48 24 52-33 31 6v52l-31-7-52-17-48 32-60-12z" fill="url(#beam)"/>${[24,65,115,166,193].map((x,i)=>`<ellipse cx="${x}" cy="${91-i*2}" rx="${i===2?3:5}" ry="${[20,35,11,36,27][i]}" fill="#82a8b8" fill-opacity=".12" stroke="#779da9" stroke-width="${i===4?3:1.2}"/>`).join('')}${im(color(values,n2,n2),211,34,101,109)}${line('M211 34h101v109H211z','#2c404a',1)}`);

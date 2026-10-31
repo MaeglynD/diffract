@@ -14,7 +14,7 @@
 
 **diffract** lets you see the field between the optical element and the screen. Orbit an experiment, move a mirror, compare microscope images, or follow a detector through rings, caustics and knots.
 
-Thirty-six setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
+Thirty-nine setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
 
 ## Explore
 
@@ -30,6 +30,8 @@ Thirty-six setups explore diffraction, holography, interferometry, microscopy, r
     <td><strong>Self-healing light</strong><br>Block the centre of a beam, then find the bright core further downstream.</td>
   </tr>
 </table>
+
+Three experiments have especially different controls. In **Eclipsing a star**, switch between two star alignments and inspect the rejected light at the Lyot pupil or the surviving spot at the camera. In **A grating made of sound**, turn up the acoustic drive to split a laser into distinct orders. In **Kaleidoscope cavity**, mix two resonances and look down on their phase patterns between three mirrors.
 
 There are also three-dimensional bunny and Saturn reconstructions, abruptly autofocusing Airy rings, rotating interference patterns, vortex gratings, fractal and quasiperiodic apertures, and the familiar double slit.
 

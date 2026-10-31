@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {drumFragment,soundFragment,SoundBasis} from './resonant-gpu.js';
 // A two-dimensional TE field is calculated into three floating-point textures.
 // This is a field solver pass, not a change to the ray-marching display quality.
 const fragment=`precision highp float;
@@ -24,8 +25,10 @@ void main(){vec2 uv=(gl_FragCoord.xy-.5)/(dimensions-1.);float x=(uv.x*2.-1.)*ha
 export class LiveFieldGpu{
  constructor(e,volume){this.e=e;this.target=new THREE.WebGLRenderTarget(volume.nx,volume.nz,{count:3,type:THREE.HalfFloatType,format:THREE.RGBAFormat,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:false});
   this.uniforms={model:{value:{michelson:1,grin:2,absorber:3}[e.id]},parameter:{value:0},halfWidth:{value:e.half},zMax:{value:e.zMax},dimensions:{value:new THREE.Vector2(volume.nx,volume.nz)}};
-  this.material=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,uniforms:this.uniforms,vertexShader:'void main(){gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:fragment,depthTest:false,depthWrite:false});this.scene=new THREE.Scene();this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.material);this.scene.add(this.mesh);this.camera=new THREE.Camera();
+  const vertexShader='void main(){gl_Position=vec4(position.xy,0.,1.);}';
+  if(e.id==='sound-cell')this.basis=new SoundBasis(volume,this.uniforms,vertexShader);
+  this.material=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,uniforms:this.uniforms,vertexShader,fragmentShader:e.id==='sound-cell'?soundFragment:e.id==='light-billiard'?drumFragment:fragment,depthTest:false,depthWrite:false});this.scene=new THREE.Scene();this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.material);this.scene.add(this.mesh);this.camera=new THREE.Camera();
  }
- update(renderer,parameter){if(this.parameter===parameter)return;this.parameter=parameter;this.uniforms.parameter.value=parameter;const target=renderer.getRenderTarget();renderer.setRenderTarget(this.target);renderer.render(this.scene,this.camera);renderer.setRenderTarget(target);}
- dispose(){this.target.dispose();this.material.dispose();this.mesh.geometry.dispose();}
+ update(renderer,parameter){if(this.parameter===parameter)return;this.parameter=parameter;this.uniforms.parameter.value=parameter;const target=renderer.getRenderTarget();this.basis?.update(renderer,this.camera,parameter);renderer.setRenderTarget(this.target);renderer.render(this.scene,this.camera);renderer.setRenderTarget(target);}
+ dispose(){this.basis?.dispose();this.target.dispose();this.material.dispose();this.mesh.geometry.dispose();}
 }

@@ -1,8 +1,9 @@
 import {LIVE_EXPERIMENTS} from './live-experiments.js';
+import {NEW_LABS} from './lab-experiments.js';
 import {BENCH_EXPERIMENTS} from './bench-experiments.js';
 // These presets reconstruct locally, without fetching stored field volumes.
 export const NATIVE_EXPERIMENTS=[
- ...BENCH_EXPERIMENTS,...LIVE_EXPERIMENTS,
+ ...BENCH_EXPERIMENTS,...LIVE_EXPERIMENTS,...NEW_LABS,
  {id:'coupler',analytic:true,name:'Evanescent exchange',kind:'native',zMax:18.2,z:9.1,scan:[.5,17.7],half:2,radius:1.5,viewHeight:.2,viewDirection:[-.16,3,.65],opticLabel:'Coupled dielectric guides',
   formula:String.raw`\widetilde E_y=\frac{u_+(x)e^{i\beta_+z}}{N_+}-\frac{u_-(x)e^{i\beta_-z}}{N_-},\qquad u_\pm''+[n^2(x)k^2-\beta_\pm^2]u_\pm=0`,
   parameters:String.raw`n_{\rm core}=1.30,\quad w=0.50\lambda,\quad g=0.25\lambda,\quad L_{\rm transfer}=\frac{\pi}{\beta_+-\beta_-}\simeq9.096\lambda`,

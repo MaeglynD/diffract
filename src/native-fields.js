@@ -44,7 +44,7 @@ export function gapMode(qx,width=GAP.width){
 
 const models=new Map();
 export function nativeModel(id){
- if(['grin','absorber'].includes(id))return liveModel(id);
+ if(['grin','absorber','sound-cell','light-billiard'].includes(id))return liveModel(id);
  if(models.has(id))return models.get(id);
  if(['michelson','michelson-right','bragg-cavity'].includes(id)){const m=benchModel(id);models.set(id,m);return m;}
  let model;

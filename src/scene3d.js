@@ -51,7 +51,7 @@ export class FieldScene{
   this.volumeMesh=new THREE.Mesh(new THREE.BoxGeometry(66,34,34).translate(23,0,0),this.volumeMaterial);this.volumeMesh.layers.set(1);this.volumeMesh.visible=false;this.volumeMesh.frustumCulled=false;this.volumeMesh.renderOrder=0;this.scene.add(this.volumeMesh);
   this.eArrows=makeArrows(PALETTES.cyan[2]);this.bArrows=makeArrows(PALETTES.cyan[3]);this.scene.add(this.eArrows,this.bArrows);
   this.detectorUniforms={...this.uniforms,detectorZ:{value:32},peak:{value:1},detectorOpacity:{value:.92},probe:{value:new THREE.Vector2(.5,.5)},showProbe:{value:false},isPreview:{value:false},previewAlpha:{value:1}};
-  this.detectorUniforms.detectorZoom={value:1};
+  this.detectorUniforms.detectorZoom={value:1};this.detectorUniforms.planPreview={value:false};this.detectorUniforms.previewAspect={value:1};this.detectorUniforms.planProbe={value:new THREE.Vector2(-1,-1)};
   Object.assign(this.uniforms,{detectorZ:this.detectorUniforms.detectorZ,peak:this.detectorUniforms.peak,detectorOpacity:this.detectorUniforms.detectorOpacity,probe:this.detectorUniforms.probe,showProbe:this.detectorUniforms.showProbe,showMask:{value:true},showDetector:{value:true},showGuide:{value:false},maskOpacity:{value:.44},maskMap:{value:new THREE.Texture()},viewportSize:{value:new THREE.Vector2()},viewportOrigin:{value:new THREE.Vector2()},inverseProjection:{value:this.camera.projectionMatrixInverse},inverseView:{value:this.camera.matrixWorld}});
   this.elementTarget=new THREE.WebGLRenderTarget(1,1,{depthTexture:new THREE.DepthTexture(1,1)});this.elementTarget.texture.generateMipmaps=false;
   this.depthTarget=new THREE.WebGLRenderTarget(1,1,{depthTexture:new THREE.DepthTexture(1,1)});this.depthTarget.texture.generateMipmaps=false;
@@ -169,7 +169,16 @@ export class FieldScene{
    for(const map of maps){signal?.throwIfAborted();this.renderer.initTexture(map);await new Promise(resolve=>setTimeout(resolve,0));}
    // Three defers uniform/attribute reflection until first use. Warm those
    // linked-program tables cooperatively, rather than all inside one frame.
-   if(LIVE_IDS.includes(e.id)&&!this.liveWarmer){this.liveWarmer=new LiveFieldGpu(e,{nx:1,nz:1});const before=this.renderer.getRenderTarget();this.renderer.setRenderTarget(this.liveWarmer.target);const warm=this.renderer.compileAsync(this.liveWarmer.scene,this.liveWarmer.camera);this.renderer.setRenderTarget(before);await warm;}
+   if(LIVE_IDS.includes(e.id)){
+    const family=['sound-cell','light-billiard'].includes(e.id)?e.id:'standard';this.liveWarmers??=new Map();
+    if(!this.liveWarmers.has(family)){
+     const warmer=new LiveFieldGpu(e,{nx:2,nz:2}),before=this.renderer.getRenderTarget(),jobs=[];
+     this.renderer.setRenderTarget(warmer.target);jobs.push(this.renderer.compileAsync(warmer.scene,warmer.camera));
+     if(warmer.basis){this.renderer.setRenderTarget(warmer.basis.target);jobs.push(this.renderer.compileAsync(warmer.basis.scene,warmer.camera));}
+     this.renderer.setRenderTarget(before);this.liveWarmers.set(family,Promise.all(jobs).then(()=>warmer));
+    }
+    await this.liveWarmers.get(family);
+   }
    this.preparedPrograms??=new WeakSet();
    for(const program of this.renderer.info.programs){
     if(this.preparedPrograms.has(program))continue;
@@ -185,9 +194,9 @@ export class FieldScene{
  setExperiment(e,volume,gpu,prepared){
 
   const changed=this.experiment?.id!==e.id;if(changed){this.pendingAppearance=null;this.pendingComparison=undefined;this.clearAuxiliary();this.setSlitPhase(0);this.presentationStart=0;const app=document.getElementById('app');app.dataset.ready='false';app.dataset.presented='false';for(const el of document.querySelectorAll('.world-label,#detector-handle')){el.hidden=true;delete el.dataset.positioned;}}this.experiment=e;this.volume=volume;
-  if(changed){this.live?.dispose();this.live=null;}if(LIVE_IDS.includes(e.id)&&!this.live){this.live=new LiveFieldGpu(e,volume);this.liveParameter=LIVE_DEFAULT[e.id];}this.uniforms.liveField.value=!!this.live;
+  if(changed){this.live?.dispose();this.live=null;}if(LIVE_IDS.includes(e.id)&&!this.live){this.live=new LiveFieldGpu(e,volume);this.liveParameter=LIVE_DEFAULT[e.id];}this.uniforms.liveField.value=!!this.live;this.detectorUniforms.planPreview.value=!!e.planPreview;this.detectorUniforms.previewAspect.value=e.id==='sound-cell'?2.8:1;
   if(this.live){['liveElectric','liveMagnetic','liveExtra'].forEach((key,i)=>this.uniforms[key].value=this.live.target.textures[i]);this.setExperimentParameter(this.liveParameter);}
- this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.analytic||e.kind==='beams'?0:10;this.viewHeight=e.viewHeight||e.half;this.uniforms.viewHeight.value=this.viewHeight;this.uniforms.densityDetector.value=!!e.energyDensity;this.uniforms.nativeField.value=!!e.analytic;this.uniforms.fineSampling.value=!!e.analytic&&e.id!=='phase-microscope';
+ this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.analytic||e.kind==='beams'?0:10;this.viewHeight=e.viewHeight||e.half;this.uniforms.viewHeight.value=this.viewHeight;this.uniforms.densityDetector.value=!!e.energyDensity;this.uniforms.nativeField.value=!!e.analytic;this.uniforms.fineSampling.value=!!e.analytic&&(!e.spectralBench||e.id==='fabry-perot');
   for(const name of['electricMap','magneticMap','extraMap','energyMap'])if(this.uniforms[name].value!==this.emptyTexture)this.uniforms[name].value.dispose();
   [this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]=gpu||[...volume.textures.map(t=>texture3D(t,volume.nx,volume.ny,volume.nz)),energyTexture(volume.energy,volume.nx,volume.ny,volume.nz)];
   this.uniforms.dimensions.value.set(volume.nx,volume.ny,volume.nz);this.uniforms.zMax.value=e.zMax;this.uniforms.travelMax.value=e.zMax;this.uniforms.halfWidth.value=e.half;this.uniforms.plateHalf.value=plateHalf(e);
@@ -201,6 +210,14 @@ export class FieldScene{
    for(const el of document.querySelectorAll('[data-bench-label]'))el.remove();
    (this.optic.userData.labels||[]).forEach((label,i)=>{const el=document.createElement('div');el.id='bench-label-'+i;el.className='world-label component-label';el.dataset.benchLabel='true';el.textContent=label.text;el.hidden=true;document.getElementById('app').append(el);});
    this.surfaceReady=this.topologyReady=true;this.lightOptic();this.uniforms.maskMap.value=this.optic.userData.maskMap;this.uniforms.nodalCount.value=0;
+   if(e.cameraSensor){
+    // This camera stays lit by its own calculated plane while the user
+    // inspects the vortex or the rejected annulus farther upstream.
+    const {z,half}=e.cameraSensor,m=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:detectorVertex,fragmentShader:detectorFragment,side:THREE.DoubleSide});
+    m.uniforms={...this.detectorUniforms,detectorZ:{value:z},peak:{value:e.detectorReference},showProbe:{value:false},isPreview:{value:true},previewAlpha:{value:1},detectorZoom:{value:e.half/half},previewAspect:{value:1},planPreview:{value:false}};
+    m.transparent=false;m.depthWrite=true;const sensor=new THREE.Mesh(new THREE.PlaneGeometry(half*2,half*2),m);
+    sensor.rotation.y=Math.PI/2;sensor.position.x=z;sensor.layers.enable(4);this.optic.add(sensor);
+   }
    if(this.models.userData.target){this.models.userData.target.material.uniforms.cutZ.value=this.z;document.getElementById('app').dataset.modelVertices=String(this.models.userData.meta.vertices);}
    this.optic.userData.setParameter?.(this.liveParameter);this.buildTrack();this.setDistance(e.z);this.setProbe(null);this.resetView(true);
   }else this.setDistance(this.z);
@@ -218,7 +235,7 @@ export class FieldScene{
   u.planeSampling.value=o.planeSampling==='instantaneous'?1:0;u.phaseReference.value=o.phaseReference==='instantaneous'?1:0;u.phaseHue.value={cyan:0,amber:1.05,silver:2.1}[o.palette];u.opacity.value=o.opacity;u.threshold.value=o.threshold;u.exposure.value=o.exposure;u.displayMode.value={field:0,energy:1,phase:2}[o.display];u.incidentLength.value=o.incident?this.incidentLength||0:0;
   u.positiveColor.value.copy(shaderColor(p[0]));u.negativeColor.value.copy(shaderColor(p[1]));u.lowColor.value.copy(shaderColor(p[4]));u.midColor.value.copy(shaderColor(p[5]));u.highColor.value.copy(shaderColor(p[6]));
   for(const[mesh,color]of[[this.eArrows,p[2]],[this.bArrows,p[3]]]){mesh.material.uniforms.color.value.copy(shaderColor(color));mesh.material.uniforms.opacity.value=o.display==='field'?.9:.58;mesh.material.uniforms.gain.value=o.gain;mesh.material.uniforms.readable.value=o.vectorScale==='readable';mesh.material.uniforms.zMax.value=this.zMax;mesh.material.uniforms.incidentLength.value=u.incidentLength.value;}
-  this.detectorUniforms.detectorOpacity.value=o.detectorOpacity;u.maskOpacity.value=o.maskOpacity;u.showMask.value=this.experiment?.kind!=='beams';for(const material of this.optic.userData.surfaces||[])material.uniforms.opacity.value=o.maskOpacity;if(this.optic.userData.glassMaterial)this.optic.userData.glassMaterial.uniforms.opacity.value=o.maskOpacity;u.showDetector.value=o.detector;u.showGuide.value=!!this.models.userData.target&&o.surfaceGuide;this.illumination.visible=o.incident;this.detector.visible=o.detector;this.track.visible=o.axes;
+  this.detectorUniforms.detectorOpacity.value=o.detectorOpacity;u.maskOpacity.value=o.maskOpacity;u.showMask.value=this.experiment?.kind!=='beams';for(const material of this.optic.userData.surfaces||[])material.uniforms.opacity.value=o.maskOpacity;if(this.optic.userData.glassMaterial)this.optic.userData.glassMaterial.uniforms.opacity.value=o.maskOpacity;u.showDetector.value=o.detector&&(!this.experiment?.cameraSensor||Math.abs(this.z-this.experiment.cameraSensor.z)>.02);u.showGuide.value=!!this.models.userData.target&&o.surfaceGuide;this.illumination.visible=o.incident;this.detector.visible=u.showDetector.value;this.track.visible=o.axes;
   if(this.models.userData.target){this.models.userData.target.visible=o.surfaceGuide;this.models.userData.target.material.uniforms.color.value.copy(shaderColor(p[2]));this.models.userData.recording.userData.wave.material.uniforms.opacity.value=o.opacity*.44;}
   this.topology.visible=this.experiment?.vortex?o.vortexLines:o.surfaceGuide;
   u.volumeContrast.value=o.volumeContrast;u.focusWindow.value.set(...(o.focusEmphasis&&this.experiment?.focusWindow||[-1,-1]));
@@ -247,13 +264,14 @@ export class FieldScene{
  }
  setDistance(z){
   this.z=Math.max(.5,Math.min(this.zMax,z));this.detector.position.x=this.z;this.detectorUniforms.detectorZ.value=this.z;if(this.models.userData.target)this.models.userData.target.material.uniforms.cutZ.value=this.z;
+  if(this.experiment?.cameraSensor)this.uniforms.showDetector.value=this.detector.visible=this.options.detector&&Math.abs(this.z-this.experiment.cameraSensor.z)>.02;
   if(this.volume)this.detectorUniforms.peak.value=this.options.detectorExposure==='fixed'&&this.experiment.detectorReference?this.experiment.detectorReference:detectorPeak(this.volume,this.z,this.options.detectorExposure);
   const nodes=this.options.vortexLines?planeIntersections(this.topology.userData.lines,this.z).slice(0,12):[];this.uniforms.nodalCount.value=nodes.length;nodes.forEach((p,i)=>this.uniforms.nodalPoints.value[i].set(p[0]/(2*this.half)+.5,p[1]/(2*this.half)+.5));
   updateIntersections(this.topology,nodes,this.z,this.options.detector);
   updateImageGuides(this.topology,this.z);
-  if(this.probePoint)this.probeMesh.position.set(this.z+.08,this.probePoint.y,-this.probePoint.x);
+  if(this.probePoint)this.probeMesh.position.set((this.probePoint.z??this.z)+.005,this.probePoint.y,-this.probePoint.x);
  }
- setProbe(point){this.probePoint=point;this.probeMesh.visible=!!point;this.detectorUniforms.showProbe.value=!!point;if(point){this.detectorUniforms.probe.value.set(point.x/(2*this.half)+.5,point.y/(2*this.half)+.5);this.probeMesh.position.set(this.z+.08,point.y,-point.x);}}
+ setProbe(point){this.probePoint=point;this.probeMesh.visible=!!point;this.detectorUniforms.showProbe.value=!!point;if(point){this.detectorUniforms.probe.value.set(point.x/(2*this.half)+.5,point.y/(2*this.half)+.5);this.probeMesh.position.set((point.z??this.z)+.005,point.y,-point.x);this.detectorUniforms.planProbe.value.set(point.x/(2*this.half)+.5,((point.z??this.z)-this.zMax/2)/(2*this.half)+.5);}}
  setExperimentParameter(value){
   if(!this.live)return;this.liveParameter=value;this.liveModel=liveModel(this.experiment.id,value);const model=this.liveModel;this.volume.liveSampler=(x,y,z,out)=>demodulated(model,x,z,out);this.liveVectorsDirty=true;
   if(this.experiment.id==='grin')this.volume.vectorBounds=Array.from({length:32},(_,i)=>({z:.4+i/31*(this.experiment.zMax-1),xmin:-3.8,xmax:3.8,ymin:-.9,ymax:.9,peak:1}));

@@ -10,7 +10,7 @@ import {generateSpectralBench} from './spectral-bench.js';
 export async function generateNativeVolume(id,signal,progress=()=>{}){
  const e=NATIVE_EXPERIMENTS.find(e=>e.id===id.replace(/-(right|bright)$/,''));if(!e)throw Error('Unknown native volume');
  if(e.spectralBench)return generateSpectralBench({...e,id},signal,progress);
- const dx=id==='grin'?.06:id==='absorber'?.08:id==='tunnelling'?.02:id.startsWith('michelson')?.075:.04,dz=id==='grin'?.06:id==='absorber'?.035:id==='tunnelling'?.018:id==='bragg-cavity'?.012:id.startsWith('michelson')?.055:.035;
+ const dx=id==='sound-cell'?.125:id==='grin'?.06:id==='absorber'?.08:id==='tunnelling'?.02:id.startsWith('michelson')?.075:.04,dz=id==='sound-cell'?.125:id==='grin'?.06:id==='absorber'?.035:id==='tunnelling'?.018:id==='bragg-cavity'?.012:id.startsWith('michelson')?.055:.035;
  const nx=Math.ceil(2*e.half/dx)+1,ny=2,nz=Math.ceil(e.zMax/dz)+1,count=nx*ny*nz*4;
  const buffer=new ArrayBuffer(HEADER_BYTES+count*6),textures=[0,1,2].map(i=>new Uint16Array(buffer,HEADER_BYTES+i*count*2,count)),permittivity=new Float32Array(nx*nz),model=nativeModel(id),f=new Float64Array(10),peaks=[];
  const xs=Float64Array.from({length:nx},(_,i)=>(i/(nx-1)*2-1)*e.half);let maxE=0,maxFlux=0,last=performance.now();

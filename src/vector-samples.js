@@ -20,16 +20,19 @@ export function prepareVectorBounds(volume){if(volume.vectorBounds)return volume
  }return volume.vectorBounds=boundsList;
 }
 export function sampleVectorVolume(volume,density=5,auxiliary=null){
- const samples=[],f=new Float32Array(10),n=Math.round(density);for(const {z,xmin,xmax,ymin,ymax,peak} of prepareVectorBounds(volume)){
+ const samples=[],f=new Float32Array(10),n=Math.round(density),bounds=prepareVectorBounds(volume),other=auxiliary&&prepareVectorBounds(auxiliary);
+ for(let layer=0;layer<bounds.length;layer++){
+  const b=bounds[layer],a=other?.[layer]||b,z=b.z,xmin=Math.min(a.xmin,b.xmin),xmax=Math.max(a.xmax,b.xmax),ymin=Math.min(a.ymin,b.ymin),ymax=Math.max(a.ymax,b.ymax);
   const anchors=[];for(let iy=0;iy<n;iy++)for(let ix=0;ix<n;ix++)anchors.push([xmin+(xmax-xmin)*ix/(n-1),ymin+(ymax-ymin)*iy/(n-1)]);
   // An even grid can entirely miss an on-axis focus. Keep an axis sample when
   // it is illuminated, without moving any anchors as the optical phase evolves.
   if(xmin<=0&&xmax>=0&&ymin<=0&&ymax>=0&&!anchors.some(([x,y])=>Math.hypot(x,y)<.2))anchors.push([0,0]);
   for(const[x,y]of anchors){
    sampleField(volume,x,y,z,f);
-   if(f.reduce((sum,v)=>sum+v*v,0)<Math.max(1e-8,peak*.002))continue;
+   const r=auxiliary?sampleField(auxiliary,x,y,z):null;
+   if(f.reduce((sum,v)=>sum+v*v,0)<Math.max(1e-8,b.peak*.002)&&(!r||r.reduce((sum,v)=>sum+v*v,0)<Math.max(1e-8,a.peak*.002)))continue;
    const sample=vectorSample(f,x,y,z);
-   if(auxiliary){const r=sampleField(auxiliary,x,y,z),right=vectorSample(r,x,y,z);let crossRe=0,crossIm=0;for(let c=0;c<10;c+=2){crossRe+=(f[c]*r[c]+f[c+1]*r[c+1])*.5;crossIm+=(f[c+1]*r[c]-f[c]*r[c+1])*.5;}sample.right=right;sample.interference=[right.envelope**2,crossRe,crossIm];}
+   if(r){const right=vectorSample(r,x,y,z);let crossRe=0,crossIm=0;for(let c=0;c<10;c+=2){crossRe+=(f[c]*r[c]+f[c+1]*r[c+1])*.5;crossIm+=(f[c+1]*r[c]-f[c]*r[c+1])*.5;}sample.right=right;sample.interference=[right.envelope**2,crossRe,crossIm];}
    samples.push(sample);
   }
  }

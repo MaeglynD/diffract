@@ -1,9 +1,12 @@
 import {benchModel} from './bench-fields.js';
+import {acousticModel,drumModel} from './resonant-instruments.js';
 export const K=2*Math.PI;
-export const LIVE_IDS=['michelson','grin','absorber'];
+export const LIVE_IDS=['michelson','grin','absorber','sound-cell','light-billiard'];
 export const GRIN={n:1.65,a:.22,modes:22};
-export const LIVE_DEFAULT={michelson:.12,grin:1.8,absorber:0};
+export const LIVE_DEFAULT={michelson:.12,grin:1.8,absorber:0,'sound-cell':1.72,'light-billiard':.13};
 export function liveModel(id,parameter=LIVE_DEFAULT[id]){
+ if(id==='sound-cell')return acousticModel(parameter);
+ if(id==='light-billiard')return drumModel(parameter);
  if(id==='michelson')return benchModel(id,parameter);
  if(id==='absorber'){
   const d=[Math.cos(parameter),Math.sin(parameter)],r=[(d[0]-1)/2,d[1]/2];

@@ -3,6 +3,9 @@ export const DEFAULT_APPEARANCE=Object.freeze({display:'energy',planeSampling:'i
 // Display-only starting points. Field amplitudes, propagation and probe values
 // are unchanged. Every new experiment restores its complete curated defaults.
 const LOOKS={
+ coronagraph:{display:'energy',opacity:.42,threshold:.008,detectorExposure:'fixed',detectorZoom:1.28,maskOpacity:.36,detectorOpacity:.72,incident:false,axes:false,exposure:1.2},
+ 'sound-cell':{display:'energy',opacity:.52,threshold:.02,volumeContrast:1.35,detectorExposure:'fixed',maskOpacity:.48,detectorOpacity:.5,incident:false,axes:false,exposure:1.22,gain:.45},
+ 'light-billiard':{display:'phase',phaseReference:'instantaneous',opacity:2.3,threshold:.018,volumeContrast:1.1,detectorExposure:'fixed',maskOpacity:.42,detector:false,incident:false,axes:false,exposure:1.32,speed:.13,gain:.14},
  grin:{axes:false,display:'energy',opacity:1.1,volumeContrast:1.6,exposure:1.2,maskOpacity:.48,detector:false,detectorExposure:'fixed',incident:false,gain:.18},
  absorber:{axes:false,display:'field',opacity:.65,threshold:.02,maskOpacity:.4,detector:false,detectorExposure:'fixed',incident:false,speed:.1,gain:.25},
  michelson:{display:'energy',planeSampling:'instantaneous',opacity:.28,threshold:.025,exposure:1.5,maskOpacity:.7,detectorOpacity:.55,detectorExposure:'fixed',axes:false,incident:false,gain:.25,detectorZoom:3},
