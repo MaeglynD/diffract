@@ -51,22 +51,19 @@ Drag to orbit, scroll to zoom, and right-drag to pan. The main control follows t
 
 ## Run locally
 
-You need **Node.js 22+**, **Git LFS**, and a browser with **WebGL 2**. Runtime dependencies are vendored; precomputed field data is stored with Git LFS. No npm install or API key is needed.
-
-After cloning, retrieve the field data before starting:
+Use **Node.js 22+** and a browser with **WebGL 2**. Start the viewer from a normal clone:
 
 ```sh
-git lfs install
-git lfs pull
 node scripts/serve.mjs
 ```
 
-Use a Git clone with LFS rather than GitHub's source ZIP, which may contain pointers in place of the field data. For deployments, fetch LFS assets before building so that `dist/` contains the actual simulation data.
+Three.js and KaTeX are vendored. Most setups reconstruct the field locally from a compact spectrum. Browsers using the stored-volume fallback stream just the selected setup from the public field library. If you have hydrated local volumes the development server uses those instead.
 
 Open **[127.0.0.1:5173](http://127.0.0.1:5173/)**.
 
 ```sh
-# Check the numerical model and shipped data
+# Fetch reference volumes for the full numerical test suite or offline authoring
+git lfs pull --include="assets/fields/*.bin.gz" --exclude=""
 node --test tests/*.test.mjs
 
 # Build and preview the static application
@@ -82,20 +79,19 @@ Optical reliefs and the bunny mesh are compressed losslessly, with surface norma
 
 ### Deploy to Cloudflare
 
-The production build is entirely static. Compact angular spectra use content-addressed URLs and immutable caching. The original compressed fields are also packaged into files of at most 16 MiB for browsers without floating-point worker WebGL; this fallback is byte-for-byte identical to the reference data. There is no server-side Worker code, database, or R2 bucket.
+Two Workers serve static assets. **diffract.org** serves the viewer, compact spectra and optics. **fields.diffract.org** serves immutable chunks for the approximately 2 GiB compatibility library. A website release pins a small, versioned index. An ordinary push checks that the index is published and matches the Git LFS pointers. It can build entirely from those pointers.
+
+In the existing **diffract** Worker, open **Settings → Builds**, connect the GitHub repository `MaeglynD/diffract`, and select the production branch `main` and repository root. Use build command `npm run build && node scripts/check-static.mjs` and deploy command `npx wrangler deploy`. The repository’s `.lfsconfig` excludes the volumes from automatic checkout and from a plain `git lfs pull`. A manual website release uses `npm run deploy`. [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+
+**Only when the precomputed fields change**, publish the new field library from a hydrated maintainer checkout:
 
 ```sh
-npm ci
-git lfs pull
-npm run build
-node scripts/check-static.mjs
-npx wrangler login
-npx wrangler deploy
+git lfs pull --include="assets/fields/*.bin.gz" --exclude=""
+# Recompute the changed fields, then:
+npm run deploy:fields
 ```
 
-[`wrangler.jsonc`](wrangler.jsonc) attaches the site to **diffract.org**. For automatic deployment, open the existing **diffract** Worker in the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/workers-and-pages). Under **Settings → Builds**, connect `MaeglynD/diffract` on GitHub, choose `main` as the production branch and use the repository root. Set the build command to `git lfs pull && npm run build && node scripts/check-static.mjs` and the deploy command to `npx wrangler deploy`. Enable only the production branch for production-only builds. Subsequent pushes to `main` deploy after the asset checks pass. The first run appears under **Builds**. A clean checkout can fetch about 2 GiB of field data from GitHub LFS. [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
-
-For a manual update, `npm run deploy` rebuilds and deploys. The full-size source volumes remain in Git LFS; generated chunks stay in the ignored `dist/` directory. [Cloudflare's static-asset pricing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/) lists free, unlimited asset requests and no storage charge. Domain renewal and any GitHub LFS usage are separate.
+Commit the changed volumes, the generated `field-library/current` and the new `field-library/releases/*.json` together. Push after the field deployment succeeds. The publisher checks every volume and retains past releases for open tabs and rollbacks. Ordinary website builds only retrieve the small release index. Cloudflare serves [static asset requests free of charge](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/). Domain renewal, build minutes and GitHub LFS source usage are separate.
 
 ## The physics
 

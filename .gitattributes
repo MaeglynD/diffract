@@ -1,1 +1,2 @@
 assets/fields/*.bin.gz filter=lfs diff=lfs merge=lfs -text
+field-library/releases/*.json text eol=lf

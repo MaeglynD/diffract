@@ -17,7 +17,7 @@ export async function packageFields(source, destination, chunkBytes = CHUNK_BYTE
       const signature = Buffer.alloc(2);
       await file.read(signature, 0, 2, 0);
       if (signature[0] !== 0x1f || signature[1] !== 0x8b) {
-        throw new Error(`${name} is not a gzip volume. Run git lfs pull before building.`);
+        throw new Error(`${name} is not a gzip volume. Before publishing fields, run git lfs pull --include="assets/fields/*.bin.gz" --exclude="".`);
       }
       const buffer = Buffer.alloc(Math.min(chunkBytes, size));
       const hash = createHash('sha256'), parts = [];
@@ -41,6 +41,6 @@ export async function packageFields(source, destination, chunkBytes = CHUNK_BYTE
       await file.close();
     }
   }
-  if (!Object.keys(manifest).length) throw new Error('No field volumes found. Run git lfs pull before building.');
+  if (!Object.keys(manifest).length) throw new Error('No volumes found. Hydrate the field sources before publishing the library.');
   return manifest;
 }

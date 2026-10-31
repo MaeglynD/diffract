@@ -5,6 +5,7 @@
 # Dependencies, build output, and test caches
 node_modules/
 /dist/
+/field-library/dist/
 /coverage/
 /.nyc_output/
 /.cache/

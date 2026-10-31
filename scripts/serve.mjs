@@ -3,13 +3,27 @@ import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {currentRelease,fieldModule} from './field-library.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)), process.argv.includes('--dist') ? 'dist' : '.');
 const port = Number(process.env.PORT || 5173);
+let devFields;
+if(!process.argv.includes('--dist')){
+  const {fields}=await currentRelease(),external={};
+  for(const [name,entry] of Object.entries(fields)){
+    const file=await stat(resolve(root,'assets/fields',name)).catch(error=>{if(error.code!=='ENOENT')throw error;});
+    if(!file||file.size<256) external[name]=entry;
+  }
+  devFields=fieldModule(external);
+}
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.gif': 'image/gif', '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain', '.woff2': 'font/woff2' };
 http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
+    if(devFields && url.pathname==='/src/field-assets.js'){
+      res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-store'});
+      res.end(req.method==='HEAD'?undefined:devFields);return;
+    }
     const path = resolve(root, '.' + decodeURIComponent(url.pathname));
     if (path !== root && !path.startsWith(root + sep)) { res.writeHead(403).end(); return; }
     const entry=await stat(path),file=entry.isDirectory()?resolve(path,'index.html'):path,info=entry.isDirectory()?await stat(file):entry;

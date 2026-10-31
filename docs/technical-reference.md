@@ -6,13 +6,13 @@ A local Three.js visualization of the complex electric and magnetic fields throu
 
 ## Run
 
-Install Git LFS before cloning, or retrieve its assets after cloning with `git lfs install` and `git lfs pull`. All `assets/fields/*.bin.gz` volumes, including previews, are stored in LFS. Fetch them before serving, testing, or building; a pointer file is not a usable field volume.
+Ordinary clones keep the Git LFS pointers. A build uses the pinned release in `field-library/current`. For the reference-data tests, rebaking or fully offline development, run `git lfs pull --include="assets/fields/*.bin.gz" --exclude=""` to hydrate the field volumes.
 
 ```powershell
 node scripts/serve.mjs
 ```
 
-Open http://127.0.0.1:5173/. Node 22 or later is required. No package installation, account, or external service is needed. Three.js and KaTeX are vendored with their licenses.
+Open http://127.0.0.1:5173/. Node 22 or later is required. The viewer needs no package installation or account. A pointer-only checkout can use the public fallback library. Three.js and KaTeX are vendored with their licenses.
 
 ```powershell
 node --test tests/*.test.mjs
@@ -20,7 +20,7 @@ node scripts/build.mjs
 node scripts/serve.mjs --dist
 ```
 
-The server binds only to loopback. Set `PORT` to change its port. The build prepares a complete static app in `dist/`, splitting the precomputed gzip volumes into content-addressed pieces no larger than 16 MiB. A generated manifest preserves their order, original length, and SHA-256. The browser streams the pieces together and decompresses the original bytes in its worker, with one part prefetched ahead. Source development continues to use the original Git LFS files. `node scripts/check-static.mjs` verifies all 56 reconstructed volumes against their source hashes. Cloudflare serves this build as static assets without server-side application code or R2. Hashed chunks are cached immutably; application modules revalidate. Settings are still never persisted.
+The server binds only to loopback. Set `PORT` to change its port. Website builds create `dist/` without reading or copying the large volumes. `node scripts/check-static.mjs` checks source pointers, compact spectra, geometry and the hash of the published field index. The independent field publisher checks whole gzip files and their ordered SHA-256 chunks (up to 16 MiB each). The field host permits cross-origin reads and serves content-addressed files with immutable caching. The local server uses local hydrated fields when available. Old same-origin chunk URLs redirect to the field host. Both deployments are static. See the [deployment instructions](../README.md#deploy-to-cloudflare).
 
 ## Interaction
 

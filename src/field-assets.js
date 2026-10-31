@@ -1,3 +1,4 @@
-// The static build replaces this map with content-addressed field chunks.
-// Source development continues to read the original Git LFS volumes.
+// The build supplies the published field index. The dev server supplies only
+// the entries missing locally, so a hydrated checkout also works offline.
+export const fieldBase = null;
 export const fieldAssets = {};

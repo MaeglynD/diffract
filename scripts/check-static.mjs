@@ -1,25 +1,32 @@
-import {createReadStream} from 'node:fs';
-import {stat,readFile} from 'node:fs/promises';
+import {open,readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-import {fieldAssets} from '../dist/src/field-assets.js';
+import {fieldAssets,fieldBase} from '../dist/src/field-assets.js';
+import {currentRelease,digest,fieldOrigin} from './field-library.mjs';
 import {EXPERIMENTS} from '../src/experiments.js';
 import {spectrumAssets} from '../dist/src/spectrum-assets.js';
 import {binaryAssets} from '../dist/src/binary-assets.js';
 import {gunzipSync} from 'node:zlib';
 
-const expected = [...EXPERIMENTS.filter(e=>!e.analytic).map(e => e.id), 'double-right'].flatMap(id => [`${id}.bin.gz`, `${id}.preview.bin.gz`]).sort();
-if (JSON.stringify(Object.keys(fieldAssets).sort()) !== JSON.stringify(expected)) throw new Error('The deployed catalogue is missing field volumes.');
-for (const [name, entry] of Object.entries(fieldAssets)) {
-  const hash = createHash('sha256');
-  let bytes = 0;
-  for (const part of entry.parts) {
-    const path = new URL(`../dist/assets/fields/chunks/${part.file}`, import.meta.url);
-    if ((await stat(path)).size !== part.bytes) throw new Error(`${name}: invalid chunk length`);
-    for await (const buffer of createReadStream(path)) { hash.update(buffer); bytes += buffer.length; }
-  }
-  if (hash.digest('hex') !== entry.sha256 || bytes !== entry.bytes) throw new Error(`${name}: reconstructed bytes do not match the source`);
+// The large blobs were checked on publication. Check the pinned remote receipt
+// and the checkout's LFS pointers without transferring or hashing the library.
+const release=await currentRelease();
+if(fieldBase!==fieldOrigin||JSON.stringify(fieldAssets)!==JSON.stringify(release.fields))throw Error('Wrong field release in the website output.');
+for(const [name,entry] of Object.entries(release.fields)){
+  const file=await open(new URL('../assets/fields/'+name,import.meta.url),'r');
+  try{
+    const {size}=await file.stat();
+    if(size<256){
+      const pointer=(await file.readFile('utf8')).split(/\r?\n/);
+      if(!pointer.includes('oid sha256:'+entry.sha256)||!pointer.includes('size '+entry.bytes))
+        throw Error(name+' has changed. Publish the matching field release first.');
+    }else if(size!==entry.bytes)throw Error(name+' does not match the published release.');
+  }finally{await file.close();}
 }
-console.log(`Verified all ${expected.length} deployed volumes: every reconstructed SHA-256 matches the source.`);
+const url=fieldOrigin+'releases/'+release.id+'.json';
+const remote=await fetch(url,{signal:AbortSignal.timeout(30000)});
+if(!remote.ok||remote.headers.get('access-control-allow-origin')!=='*'||digest(Buffer.from(await remote.arrayBuffer()))!==release.id)
+  throw Error('Field release unavailable or invalid at '+url);
+console.log('Verified '+Object.keys(fieldAssets).length+' fields against the published index ('+release.id+').');
 for(const id of [...EXPERIMENTS.filter(e=>!e.analytic).map(e=>e.id),'double-right']){
  const entry=spectrumAssets[id];if(!entry)throw Error(`Missing compact spectrum: ${id}`);
  const bytes=await readFile(new URL(`../dist/assets/spectra/${entry.file}`,import.meta.url));

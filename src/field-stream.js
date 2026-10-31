@@ -1,4 +1,4 @@
-import {fieldAssets} from './field-assets.js';
+import {fieldAssets,fieldBase} from './field-assets.js';
 
 // Concatenate the original compressed bytes as a stream. Gzip decoding stays
 // in the worker, and no second copy of the complete volume is buffered here.
@@ -16,7 +16,7 @@ export async function openFieldStream(url, signal, assets = fieldAssets, fetcher
   const abort = () => controller.abort(signal.reason);
   signal?.addEventListener('abort', abort, {once: true});
   const cleanup = () => signal?.removeEventListener('abort', abort);
-  const request = part => fetcher(new URL(`chunks/${part.file}`, url), {signal: controller.signal})
+  const request = part => fetcher(new URL(`chunks/${part.file}`, fieldBase||url), {signal: controller.signal})
     .then(response => {
       if (!response.ok || !response.body) throw new Error(`Field data unavailable (${response.status}).`);
       return {response};
