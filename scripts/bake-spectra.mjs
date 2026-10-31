@@ -9,7 +9,7 @@ async function metadata(id,preview=false){
  try{for await(const bytes of stream){if(bytes.length<HEADER_BYTES)throw Error('Incomplete volume header');return JSON.parse(bytes.subarray(0,HEADER_BYTES).toString().split('\0')[0]);}}finally{source.destroy();stream.destroy();}
 }
 await mkdir('assets/spectra',{recursive:true});
-const ids=process.argv.slice(2),selected=[...EXPERIMENTS.map(e=>e.id),'double-right'].filter(id=>!ids.length||ids.includes(id));
+const ids=process.argv.slice(2),selected=[...EXPERIMENTS.filter(e=>!e.analytic).map(e=>e.id),'double-right'].filter(id=>!ids.length||ids.includes(id));
 for(const id of selected){
  const spectrum=buildSpectrum(id),full=await metadata(id),preview=await metadata(id,true);
  const radius=Math.ceil(spectrum.config.length*spectrum.config.naMax),side=radius*2+1;

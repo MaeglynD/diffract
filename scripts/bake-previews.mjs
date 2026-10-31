@@ -12,7 +12,7 @@ function chunk(type,data){const name=Buffer.from(type),bytes=Buffer.concat([name
 function png(w,h,rgba){const header=Buffer.alloc(13);header.writeUInt32BE(w);header.writeUInt32BE(h,4);header[8]=8;header[9]=6;const rows=Buffer.alloc(h*(w*4+1));for(let y=0;y<h;y++)Buffer.from(rgba.buffer,rgba.byteOffset+y*w*4,w*4).copy(rows,y*(w*4+1)+1);return 'data:image/png;base64,'+Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]).toString('base64');}
 await mkdir('assets/previews',{recursive:true});await mkdir('assets/masks',{recursive:true});
 
-for(const e of EXPERIMENTS.filter(e=>!process.argv.slice(2).length||process.argv.slice(2).includes(e.id))){
+for(const e of EXPERIMENTS.filter(e=>!e.analytic&&(!process.argv.slice(2).length||process.argv.slice(2).includes(e.id)))){
  const maskImage=transmissionPixels(e,384);await writeFile('assets/masks/'+e.id+'.png',Buffer.from(png(384,384,maskImage.data).split(',')[1],'base64'));
  const surface=surfacePixels(e,384);await writeFile('assets/masks/'+e.id+'.surface.png',Buffer.from(png(384,384,surface.data).split(',')[1],'base64'));
  const bytes=gunzipSync(await readFile('assets/fields/'+e.id+'.bin.gz')),v=decodeVolume(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)),P=160,h=maskHalf(e),optic=new Uint8Array(P*P*4),detector=new Uint8Array(P*P*4),f=new Float32Array(10),peak=detectorPeak(v,e.z);

@@ -1,0 +1,4 @@
+<!doctype html><meta charset="utf-8"><title>Optical bench field audit</title>
+<style>body{background:#071119;color:#cde2e8;font:15px monospace;padding:30px}pre{white-space:pre-wrap}</style>
+<h1>Independent CPU / GPU field audit</h1><pre id="result">Calculating…</pre>
+<script type="module">const worker=new Worker('./bench-audit.worker.mjs',{type:'module'});worker.onmessage=({data})=>{document.querySelector('#result').textContent=JSON.stringify(data,null,2);document.body.dataset.passed=String(data.passed);worker.terminate();};worker.onerror=e=>{document.querySelector('#result').textContent=e.message;document.body.dataset.passed='false';};worker.postMessage({});</script>

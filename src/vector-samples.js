@@ -14,8 +14,8 @@ export function prepareVectorBounds(volume){if(volume.vectorBounds)return volume
   for(let iy=0;iy<scan;iy++)for(let ix=0;ix<scan;ix++){
    sampleField(volume,(ix/(scan-1)*2-1)*extent,(iy/(scan-1)*2-1)*extent,z,f);const energy=f.reduce((sum,v)=>sum+v*v,0);wx[ix]+=energy;wy[iy]+=energy;peak=Math.max(peak,energy);
   }
-  const bounds=w=>{const lo=(quantile(w,.035)/(scan-1)*2-1)*extent,hi=(quantile(w,.965)/(scan-1)*2-1)*extent,c=(lo+hi)/2,h=Math.max(1.5,(hi-lo)*.55);return[Math.max(-extent,c-h),Math.min(extent,c+h)];};
-  const [xmin,xmax]=bounds(wx),[ymin,ymax]=bounds(wy);boundsList.push({z,xmin,xmax,ymin,ymax,peak});
+  const bounds=w=>{const lo=(quantile(w,.035)/(scan-1)*2-1)*extent,hi=(quantile(w,.965)/(scan-1)*2-1)*extent,c=(lo+hi)/2,h=Math.max(volume.analytic?.3:1.5,(hi-lo)*.55);return[Math.max(-extent,c-h),Math.min(extent,c+h)];};
+  const [xmin,xmax]=bounds(wx),[ymin,ymax]=volume.analytic?[-volume.viewHeight*.7,volume.viewHeight*.7]:bounds(wy);boundsList.push({z,xmin,xmax,ymin,ymax,peak});
 
  }return volume.vectorBounds=boundsList;
 }

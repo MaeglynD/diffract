@@ -14,7 +14,7 @@ test('binary16 preserves sign, tiny fields, and mantissa carry at powers of two'
 });
 
 test('shipped 3D fields agree with independently propagated fields off every sampling plane',async()=>{
- for(const e of EXPERIMENTS){
+ for(const e of EXPERIMENTS.filter(e=>!e.analytic)){
   const v=await readVolume(e.id),s=buildSpectrum(e.id);assert.ok(v.nx===Math.round(2*e.half/0.25)+1&&v.ny===v.nx&&v.nz>80);let error=0,energy=0,fluxError=0,fluxEnergy=0,scalarError=0,scalarNorm=0;const scalar=energyVolume(v);
   for(const z of[1.17,e.z+.23,e.zMax-.31]){
    const direct=propagate(s,z);

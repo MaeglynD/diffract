@@ -2,7 +2,7 @@ import {EXPERIMENTS} from '../../src/experiments.js';
 import {SpectralVolume,decodeSpectrum} from '../../src/spectral-volume.js';
 import {decodeVolume,fromHalf} from '../../src/volume-data.js';
 const read=async url=>new Response((await fetch(url)).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-self.onmessage=async({data:{id:requested}})=>{const results=[],solver=new SpectralVolume();for(const id of requested==='all'?[...EXPERIMENTS.map(e=>e.id),'double-right']:[requested])for(const quality of ['preview','full'])try{
+self.onmessage=async({data:{id:requested}})=>{const results=[],solver=new SpectralVolume();for(const id of requested==='all'?[...EXPERIMENTS.filter(e=>!e.analytic).map(e=>e.id),'double-right']:[requested])for(const quality of ['preview','full'])try{
  const started=performance.now(),s=decodeSpectrum(await read(`../../assets/spectra/${id}.spectrum.gz`)),downloadMs=performance.now()-started;
  const generated=await solver.generate(s,quality,null,progress=>self.postMessage({id,quality,completed:results.length,progress,seconds:(performance.now()-started)/1000})),computeMs=performance.now()-started-downloadMs;
  self.postMessage({id,quality,computeMs,checking:true});

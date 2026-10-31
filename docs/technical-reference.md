@@ -2,7 +2,7 @@
 
 [← Back to diffract](../README.md)
 
-A local Three.js visualization of the complex electric and magnetic fields throughout a three-dimensional volume. Twenty-seven experiments are selected through diagram previews of their transmission, computed field structure and detector data. The detector samples the volume on the GPU as it moves; dragging does not invoke a solver or change the camera.
+A local Three.js visualization of the complex electric and magnetic fields throughout a three-dimensional volume. Thirty-four experiments are selected through previews of their apparatus, computed field structure and detector data. The detector samples the volume on the GPU as it moves; dragging does not invoke a solver or change the camera.
 
 ## Run
 
@@ -24,9 +24,9 @@ The server binds only to loopback. Set `PORT` to change its port. The build prep
 
 ## Interaction
 
-Choose an experiment from the image strip. The URL records the selection, for example `/#trefoil` or `/#metamorphosis`; opening a link, reloading, and browser Back/Forward restore that setup. Unknown fragments fall back to the first experiment, the trefoil. Only the setup is encoded, not session display adjustments. Drag to orbit, right-drag to pan, or scroll to zoom. The distance slider and the handle below the detector both move its sampling plane continuously. The camera remains fixed during detector movement and full-resolution refinement.
+Choose an experiment from the image strip. The URL records the selection, for example `/#trefoil` or `/#metamorphosis`; opening a link, reloading, and browser Back/Forward restore that setup. Unknown fragments fall back to the first experiment, the Michelson interferometer. Only the setup is encoded, not session display adjustments. Drag to orbit, right-drag to pan, or scroll to zoom. The distance slider and the handle below the detector both move its sampling plane continuously. The camera remains fixed during detector movement and full-resolution refinement.
 
-Electric field, Energy and Phase sit immediately above the floating detector preview. The canvas spans the entire viewport, including behind the floating instruments. Scan, framing, information and settings controls sit in the lower-left corner of the viewport; settings open directly above their button without moving the preview or camera. On narrow screens the instruments occupy the area below the scene. Both the observation plane and preview follow the selected display: RMS electric component (instantaneous is optional), time-averaged axial flux, or optical phase. Palettes update the volume and both plane views. Brightness changes the display mapping, not the physical field. Optical phase defaults to the relative argument, $\arg(\widetilde E_y e^{-ikz})$, to expose diffraction structure without averaging many carrier cycles along a viewing ray. Instantaneous phase, $\arg(\widetilde E_y)-\omega t$, remains available. Changing palette rotates the cyclic phase hue reference.
+Electric field, Energy and Phase are attached tabs at the top edge of the floating detector preview. Arrow keys move between tabs. The canvas spans the entire viewport, including behind the floating instruments. Scan, framing, information and settings controls sit in the lower-left corner of the viewport; settings open directly above their button without moving the preview or camera. On narrow screens the instruments occupy the area below the scene. Both the observation plane and preview follow the selected display: instantaneous signed electric component (RMS is optional), time-averaged axial flux, or optical phase. Palettes update the volume and both plane views. Brightness changes the display mapping, not the physical field. Optical phase defaults to the relative argument, $\arg(\widetilde E_y e^{-ikz})$, to expose diffraction structure without averaging many carrier cycles along a viewing ray. Instantaneous phase, $\arg(\widetilde E_y)-\omega t$, remains available. Changing palette rotates the cyclic phase hue reference.
 
 The detector slider has exactly the preview's width and a 42–44 px interaction region, including dragging above and below the thin visible track. Scanning starts automatically, and manual adjustment pauses it. The floating play button resumes scanning. Optical-cycle animation is controlled separately in the Vectors settings. The framing control fits the optical setup with a camera transition. Most sculptural presets start with vectors off; the two field toggles remain available. Basic interference examples retain vectors where they help explain the field. Short component names and a ground grid start visible. The coordinate-axis widget has been removed. Labels avoid each other and the detector preview; less essential source labels are omitted on small screens. Scene labels and the detector handle remain hidden until the field and required geometry are ready. Pointer clicks have no focus outline; keyboard focus retains a background or brightness cue.
 
@@ -43,6 +43,33 @@ Click either detector view to inspect local instantaneous components and time-av
 Catalogue selection leaves visible cards in place. A clipped choice is revealed with a short, interruptible eased scroll; elapsed animation steps are bounded so a delayed frame does not snap the rail to its destination. Edge fades withdraw at the ends. Settings tabs fade in place, and continuous control updates are coalesced to one update per animation frame. Preview mode buttons update their selected state immediately, independently of the rendered crossfade. Labels and the detector handle require valid projected positions and a presented scene before becoming visible.
 
 ## Experiments
+
+The catalogue begins with four complete instruments:
+
+| Setup | Calculation and interaction | URL |
+| --- | --- | --- |
+| Michelson · two returning paths | A lossless 50:50 junction, coherent TE angular-spectrum beams, two returning mirror arms and complementary outputs. A return-arm phase control updates the coherent sum. | `/#michelson` |
+| Seeing the invisible · phase microscope | A coherent 4f microscope converts an illustrative transparent phase specimen into intensity contrast using a quarter-wave, attenuating dot in the Fourier plane. | `/#phase-microscope` |
+| Between mirrors · Fabry–Pérot | Every retained plane-wave angle has its own infinite reflection sum. Both travel directions contribute to all five complex field components. | `/#fabry-perot` |
+| A defect that traps light | Dielectric films form two Bragg mirrors around a half-wave defect. The same thicknesses and indices drive the geometry and calculation. | `/#bragg-cavity` |
+
+The microscope is a coherent Zernike **phase-dot** demonstration, not a commercial annular-illumination microscope. Its two ideal thin lenses have focal length 20 wavelengths and a 10-wavelength pupil radius; the 0.85-wavelength phase dot multiplies the central field by $0.55i$. A 256-square angular spectrum on a 64-wavelength computational domain propagates between boundaries, with a smooth numerical-aperture cutoff from 0.52 to 0.65. The finite band limit slightly smooths the prescribed specimen. Its image arises from propagation and interference, without a target-image overlay. The specimen geometry is an illustrative membrane guide, not a microscopic dielectric-scattering calculation. Shortcuts move the detector to the specimen, Fourier plane and image.
+
+The Fabry–Pérot mirrors lie at 4 and 12 wavelengths, with power reflectivity 0.88. Their scattering matrices conserve energy, and their per-angle transmission obeys the Airy formula. The two-dimensional spectrum uses a 128-square transform on a 32-wavelength domain. This retains the same spectral support as a 256-square transform; their CPU fields agree to numerical precision at aligned samples. Stored axial spacing is 0.03 wavelengths to resolve counterpropagating fields after carrier removal. The microscope uses 0.5-wavelength axial spacing and both use 0.25-wavelength transverse samples. The GPU inverse FFT retains every mode of the prepared spectrum. Thin optical boundaries have finite display resolution.
+
+The Michelson is vertically invariant and its ideal splitter lies on a diagonal plane through the arm axes. Its ports contain coherent angular spectra, not drawn ray cones. A uniform phase delay on the returning second arm updates that arm and both output contributions. It is equivalent to a small mirror displacement only in the collimated limit; finite splitter-edge diffraction, coating response and launch coupling are excluded. The multilayer is likewise vertically invariant and uses a lossless TE transfer matrix at every interface. Energy on the observation plane means mean density for both cavities and the Michelson, and forward axial flux for the microscope.
+
+`tests/bench-fields.test.mjs` checks Michelson unitarity and vacuum curl equations within each port, multilayer interface continuity and power, the Fabry–Pérot Airy law, and phase-to-intensity conversion and non-increasing power through the microscope. `tests/browser/bench-audit.html` independently compares GPU fields against CPU inverse FFTs on both sides of optical elements. Measured relative field RMS errors were 0.021% (microscope) and 0.019% (Fabry–Pérot), consistent with binary16 storage. Run `node scripts/bake-bench-previews.mjs` to regenerate the computed diagram previews.
+
+Three additional entries have their own material-boundary solvers. They are not aperture transmissions:
+
+| Setup | Calculated behaviour | URL |
+| --- | --- | --- |
+| Whispering-gallery cavity | An azimuthally travelling TM mode inside a perfectly conducting cylindrical cavity | `/#circulator` |
+| Light across a forbidden gap | TE beam reflection, evanescent penetration and transmission across a glass–air–glass gap | `/#tunnelling` |
+| Evanescent exchange | Beating of exact even/odd TE supermodes in two parallel dielectric slab guides | `/#coupler` |
+
+These fields are invariant vertically. The geometry exposes a finite-height cutaway, with every spatial axis at the same scale. This is a full vector field in a symmetric geometry, not a simulation of the scattering of finite-height blocks or guide ends. The cavity’s Energy detector samples mean energy density; the other two sample forward axial power flux. Their initial views and palettes reset independently of the previously selected experiment.
 
 Highlighted setups explore topology, multi-plane holography and propagation past an obstruction:
 
@@ -78,6 +105,8 @@ Five foci encodes converging spherical waves aimed at five different depths. The
 The helicon, rotating-petal, caustic and vortex elements have an equivalent geometrical relief derived from their actual wrapped transmission phase: $h=(\arg T+\pi)/\pi$ wavelengths at index contrast $0.5$. This is one thin-element realization of the prescribed phase, with material scattering excluded. The constant phase offset is immaterial. Separate attenuation represents the amplitude factor, and an opaque pupil stop surrounds the transmitting area. Their information-view previews encode phase by hue and amplitude by brightness. The bunny, five-focus and flat-image holograms instead use thin patterned wavefront displays representing ideal complex-amplitude modulation; their phase is not rendered as a glass sculpture. These are idealized implementations, not claims about a unique manufactured device. Binary openings are holes in a mounted absorbing screen, with laser illumination arriving through an upstream collimator. The screen has a muted slate finish and modest display transparency. Element display opacity changes compositing only, never physical transmission or computed diffraction. The lens has a convex profile and its support ends below the clear opening. The axicon has a conical profile illustrating the equivalent thin-phase element at an index contrast of 0.5. Crossing beams use three angled launch heads connected to a shared source and splitter, without a fictitious plate. Source bodies, fibres, lenses and their upstream beam envelopes are schematic optical hardware; propagation inside these components is not solved.
 
 ## Electromagnetic model
+
+This section describes the 27 aperture-spectrum experiments. The three material-boundary models are described separately below.
 
 Distances are measured in wavelengths, with $\lambda=532\,\mathrm{nm}$ in vacuum. The time convention is
 
@@ -116,6 +145,24 @@ The relative slit phase uses exact coherent linearity: $F(\delta)=F(0)+(e^{i\del
 The incoming field is an analytic plane wave, $\mathbf E/E_0=\hat{\mathbf y}\cos(kz-\omega t)$ and $c\mathbf B/E_0=-\hat{\mathbf x}\cos(kz-\omega t)$, visually cropped to the plate. Its join to the prescribed outgoing field is schematic. This is a band-limited prescribed-field model, not a material boundary-value solution: reflected and evanescent fields, aperture thickness, edge charges and material scattering are excluded. Individual outgoing modes satisfy Maxwell's equations; finite storage and interpolation introduce numerical error in displayed samples.
 
 ## Numerical resolution and performance
+
+### Material-boundary models
+
+`src/native-fields.js` evaluates monochromatic TE fields with the convention $e^{-i\omega t}$:
+
+$$\widetilde{\mathbf E}=(0,\widetilde E_y,0),\qquad c\widetilde{\mathbf B}=\frac{1}{ik}(-\partial_z\widetilde E_y,0,\partial_x\widetilde E_y).$$
+
+The cavity uses $\widetilde E_y=CJ_{18}(kr)e^{18i\phi}$, with $R=j_{18,1}/k$. The radial wall has zero tangential electric and normal magnetic field. End caps are perfectly conducting; the top is omitted graphically to reveal the interior. It is not a dielectric microresonator model.
+
+The two guides have index $1.3$, width $0.5\lambda$ each, and gap $0.25\lambda$. Parity reduces the eigenproblem to a half-domain. Hyperbolic functions in the central gap, sine/cosine functions in the core and exponential tails outside are matched by continuity of $u$ and $u'$. The highest even and odd bound eigenvalues determine the fundamental supermodes. Equal-power normalization gives a transfer length of $9.0960\lambda$. Approximately 97% of the axial power alternates between half-spaces; the small remaining fraction is part of the exact solution.
+
+Tunnelling uses two index-$1.7$ half-spaces, separated by $0.28\lambda$ of air. Forty-nine angular components surround $53^\circ$ incidence, all above the air critical angle. Matching both field and derivative retains the growing and decaying gap terms. The central component has $R=0.85518797$ and $T=0.14481203$, with $R+T=1$. At zero gap the transmission tends to unity; at large gap it tends to zero. The lateral angular factors are cached, so the accelerated row evaluation performs the same coherent sum without repeated trigonometric work.
+
+The worker generates these fields directly at full resolution. Their transverse/axial spacings are at most $0.04\lambda/0.035\lambda$; tunnelling uses $0.02\lambda/0.018\lambda$ to resolve backward-wave interference. Two identical vertical rows represent exact vertical invariance. Binary16 textures use the existing complex interpolation path and restored carrier. Dielectric energy density includes $n^2|E|^2$, rather than incorrectly using the vacuum weighting inside glass. Discontinuous material densities and conducting-wall fields have a one-cell display boundary. The analytical tests check Maxwell residuals below $3\times10^{-4}$ in normalized units, interface continuity, power balance, core transfer, and off-grid reconstruction.
+
+References: [cylindrical cavity modes, University of Texas](https://farside.ph.utexas.edu/teaching/jk1/lectures/node116.html); [frustrated total internal reflection, Physical Review A](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.62.012112).
+
+### Aperture-spectrum volumes
 
 - Boundary fields use a $512^2$ FFT over $128\lambda\times128\lambda$, with $4^2$ area samples per launch pixel.
 - Full volumes store all five nonzero complex components at transverse spacing $0.25\lambda$, aligned exactly with the propagation grid to avoid an extra interpolation. Transverse grids range from $113^2$ to $233^2$ samples; axial spacing is $0.5\lambda$, with experiment-specific travel of $42$–$96\lambda$.

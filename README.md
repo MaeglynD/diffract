@@ -14,7 +14,7 @@
 
 **diffract** lets you see the field between the optical element and the screen. Orbit an experiment, move its detector through space, and watch interference turn into rings, images, caustics, or knots.
 
-Twenty-seven setups share the same vector propagation model. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
+Thirty-four setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
 
 ## Explore
 
@@ -33,9 +33,13 @@ Twenty-seven setups share the same vector propagation model. The three-dimension
 
 There are also three-dimensional bunny and Saturn reconstructions, abruptly autofocusing Airy rings, rotating interference patterns, vortex gratings, fractal and quasiperiodic apertures, and the familiar double slit.
 
+Four complete instruments add **Michelson interferometry**, a **coherent phase-contrast microscope**, a **Fabry–Pérot resonator**, and a **photonic-crystal defect cavity**. Follow the actual split paths, lenses, Fourier-plane phase dot or dielectric layers. The Michelson has an adjustable return-arm delay; the microscope lets you jump between specimen, Fourier plane and image. These use ideal optical boundaries, with their approximations stated in the information view.
+
+Three material-boundary experiments go beyond the aperture model: **Evanescent exchange** transfers light between parallel dielectric guides; a **Whispering-gallery cavity** confines a rotating cylindrical mode; and **Light across a forbidden gap** shows frustrated total internal reflection between two glass blocks. These solve their own monochromatic Maxwell boundary problems, including reflected or evanescent fields where applicable. Their finite-height cutaways expose vertically invariant fields; they do not model the scattering of finite-height hardware. The new scenes generate full-resolution fields locally, without downloading precomputed volumes.
+
 - **Move through the field.** The detector samples on the GPU while you drag. It does not wait for a new propagation calculation.
-- **Choose what you see.** Electric field, axial energy flux, or optical phase; independently switch electric and magnetic vectors on or off.
-- **Look closer.** Inspect a point numerically, compare phase and amplitude, or change the relative phase of the two slits.
+- **Choose what you see.** Attached preview tabs select electric field, energy, or optical phase; independently switch electric and magnetic vectors on or off. Cavities and the Michelson show mean energy density on their observation plane; forward-propagating setups show axial flux. Electric field defaults to the instantaneous signed component, with RMS available in settings.
+- **Look closer.** Inspect a point numerically, compare phase and amplitude, or change the relative phase of two slits or interferometer arms.
 - **Keep a place.** Each setup has a shareable URL fragment, such as `/#trefoil`, `/#metamorphosis`, or `/#healing`.
 
 Drag to orbit, scroll to zoom, and right-drag to pan. The preview slider moves the detector; touching it pauses the automatic scan. **Space** resumes or pauses scanning, **R** reframes the experiment, and **T** cycles the temporary lighting themes. Preferences reset on reload.
@@ -69,7 +73,7 @@ node scripts/serve.mjs --dist
 
 The server binds to loopback. Set the `PORT` environment variable to use a different port. The build output in `dist/` can be served as static files.
 
-Each setup normally downloads **190–392 KiB** of angular-spectrum data. A worker reconstructs the same complex electric and magnetic fields locally with a GPU inverse FFT, first at preview resolution and then on the full original grid. No retained modes are discarded. Nearby spectra are prefetched, generated volumes use a bounded memory cache, and leaving a setup cancels its work. The approximately 2 GiB collection of reference volumes remains available as a compatibility fallback.
+Each aperture-based setup normally downloads **190–392 KiB** of angular-spectrum data. A worker reconstructs the same complex electric and magnetic fields locally with a GPU inverse FFT, first at preview resolution and then on the full original grid. No retained modes are discarded. Nearby spectra are prefetched, generated volumes use a bounded memory cache, and leaving a setup cancels its work. The approximately 2 GiB collection of reference volumes remains available as a compatibility fallback.
 
 Optical reliefs and the bunny mesh are compressed losslessly, with surface normals calculated in a separate worker. Texture uploads and shader preparation happen before a setup appears. The scene and its controls change together; every setup restores its curated display defaults. The catalogue keeps visible choices in place and gently reveals choices beyond its edges.
 
@@ -90,7 +94,7 @@ npx wrangler deploy
 
 ## The physics
 
-Each optical element prescribes a finite, band-limited complex exit field. An angular-spectrum calculation propagates it through vacuum. Every retained plane-wave mode obeys
+The aperture-based experiments prescribe a finite, band-limited complex exit field. An angular-spectrum calculation propagates it through vacuum. Every retained plane-wave mode obeys
 
 $$
 \mathbf{k}\cdot\widetilde{\mathbf{E}}=0,
@@ -100,7 +104,7 @@ $$
 
 The longitudinal electric field and magnetic components are derived from these relations. Fresnel and far-field behaviour emerge from the same propagation, using the full longitudinal wave number. The detector's energy view shows the time-averaged axial Poynting flux.
 
-**What the picture means matters.** The coloured volume makes an otherwise invisible field observable; its brightness and opacity are display mappings. Hologram outlines and singularity traces are identified guides. The model does not solve reflection, material scattering, aperture-edge charges, or evanescent fields. It is a monochromatic steady state, rather than a simulation of a source switching on.
+**What the picture means matters.** The coloured volume makes an otherwise invisible field observable; its brightness and opacity are display mappings. Hologram outlines and singularity traces are identified guides. The aperture model excludes reflection, material scattering, aperture-edge charges and evanescent fields. The three material-boundary experiments separately solve their ideal cavity or dielectric interfaces, including evanescent coupling and reflection. It is a monochromatic steady state, rather than a simulation of a source switching on.
 
 The test suite covers Maxwell consistency, power conservation, independent diffraction references, numerical convergence, coherent interference, vortex topology, and the actual shipped field volumes.
 

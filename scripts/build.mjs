@@ -18,7 +18,7 @@ await cp(join(root, 'assets'), join(output, 'assets'), {
   filter: source => !['assets/fields','assets/spectra'].some(path=>resolve(source)===resolve(root,path))
 });
 const spectrumAssets={};await mkdir(join(output,'assets/spectra'),{recursive:true});
-for(const id of [...EXPERIMENTS.map(e=>e.id),'double-right']){
+for(const id of [...EXPERIMENTS.filter(e=>!e.analytic).map(e=>e.id),'double-right']){
  const bytes=await readFile(join(root,'assets/spectra',id+'.spectrum.gz')),sha256=createHash('sha256').update(bytes).digest('hex'),file=sha256+'.spectrum';
  await writeFile(join(output,'assets/spectra',file),bytes);spectrumAssets[id]={file,bytes:bytes.length,sha256};
 }

@@ -51,10 +51,10 @@ void main(){int i=((int(gl_FragCoord.y)-rowOffset)*int(dimensions.x)+int(gl_Frag
 // Float32 FFT arithmetic, retaining every mode of the original Float64 angular
 // spectrum. Output uses exactly the original grid, components and binary16 format.
 export class SpectralVolume {
- constructor(){
+ constructor({initShader=init}={}){
   const canvas=new OffscreenCanvas(1,1),gl=this.gl=canvas.getContext('webgl2',{antialias:false,depth:false,stencil:false,alpha:false});
   if(!gl||!gl.getExtension('EXT_color_buffer_float'))throw Error('Floating-point field reconstruction is unavailable');
-  this.programs=[init,butterfly,crop].map(fragment=>{
+  this.programs=[initShader,butterfly,crop].map(fragment=>{
    const program=gl.createProgram();for(const[type,source]of[[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]){const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));gl.attachShader(program,shader);gl.deleteShader(shader);}gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));return program;
   });
   this.locations=this.programs.map(p=>new Map());gl.bindVertexArray(gl.createVertexArray());this.resources=[];this.n=0;

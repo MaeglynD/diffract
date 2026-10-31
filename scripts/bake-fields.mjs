@@ -6,7 +6,7 @@ import { HEADER_BYTES, toHalf, fromHalf } from '../src/volume-data.js';
 
 await mkdir('assets/fields', { recursive: true });
 const requested = process.argv.slice(2);
-const selected = requested.length ? EXPERIMENTS.filter(e => requested.includes(e.id)) : [...EXPERIMENTS];
+const selected = requested.length ? EXPERIMENTS.filter(e => !e.analytic&&requested.includes(e.id)) : EXPERIMENTS.filter(e=>!e.analytic);
 if(!requested.length||requested.includes('double-right'))selected.push({...EXPERIMENTS.find(e=>e.id==='double'),id:'double-right'});
 for (const e of selected) {
   const started = performance.now(), spectrum = buildSpectrum(e.id), nx = Math.round(2 * e.half * spectrum.config.n / spectrum.config.length) + 1, ny = nx, regularNz=Math.round(e.zMax*2)+1,cut=e.interfaceZ?Math.round(e.interfaceZ*2):-1,nz=regularNz+(cut>=0?1:0);

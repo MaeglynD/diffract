@@ -8,7 +8,7 @@ import {energyVolume,energyVolumeAsync} from '../src/energy-volume.js';
 import {toHalf} from '../src/volume-data.js';
 
 test('compact assets preserve every retained Fourier coefficient, including both sides of the obstruction',async()=>{
- for(const id of [...EXPERIMENTS.map(e=>e.id),'double-right']){
+ for(const id of [...EXPERIMENTS.filter(e=>!e.analytic).map(e=>e.id),'double-right']){
   const bytes=gunzipSync(await readFile(new URL(`../assets/spectra/${id}.spectrum.gz`,import.meta.url))),s=decodeSpectrum(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)),reference=buildSpectrum(id),sources=[reference,...(reference.after?[reference.after]:[])];
   assert.equal(s.id,id);assert.equal(s.sources,sources.length);assert.equal(s.data.length,s.side*s.side*2*s.sources);
   for(const quality of ['preview','full']){const meta=s[quality];assert.equal(meta.quality,quality);assert.equal(meta.id,id);assert.equal(meta.peaks.length,meta.nz);assert.ok(s.side<meta.grid.n/2,'preview FFT retains the entire spectral support');}

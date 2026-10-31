@@ -16,9 +16,9 @@ function fieldAt(s,p){
   }
   return f; // Ex, Ey, Ez, cBx, cBy, cBz, interleaved complex
 }
-test('all catalogue fields satisfy finite-difference vacuum Maxwell equations and the energy-flow bound',()=>{
+test('all aperture-spectrum fields satisfy finite-difference vacuum Maxwell equations and the energy-flow bound',()=>{
   let worst=0;
-  for(const e of EXPERIMENTS){
+  for(const e of EXPERIMENTS.filter(e=>!e.analytic)){
     const s=buildSpectrum(e.id),h=.001;
     for(const p of[[.713,1.137,3.217],[e.radius*.31,-e.radius*.27,e.z+.173]]){
       const f=fieldAt(s,p),d=[0,1,2].map(axis=>{const a=[...p],b=[...p];a[axis]+=h;b[axis]-=h;const fa=fieldAt(s,a),fb=fieldAt(s,b);return fa.map((v,i)=>(v-fb[i])/(2*h));});
@@ -41,7 +41,7 @@ test('all catalogue fields satisfy finite-difference vacuum Maxwell equations an
 
 test('integrated axial power is conserved in each source-free propagation region',()=>{
   let worst=0;
-  for(const e of EXPERIMENTS){
+  for(const e of EXPERIMENTS.filter(e=>!e.analytic)){
     const s=buildSpectrum(e.id),regions=e.interfaceZ?[[0,e.interfaceZ*.5,e.interfaceZ-1e-5],[e.interfaceZ,(e.interfaceZ+e.zMax)/2,e.zMax]]:[[0,e.zMax*.371,e.zMax]],powers=[];
     for(const region of regions){let reference;
     for(const z of region){

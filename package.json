@@ -10,7 +10,7 @@
     "build": "node scripts/build.mjs",
     "deploy": "npm run build && wrangler deploy",
     "preview:cloudflare": "wrangler dev",
-    "bake": "node scripts/bake-fields.mjs && node scripts/bake-spectra.mjs && node scripts/bake-vortex-lines.mjs && node scripts/bake-elements.mjs && node scripts/bake-previews.mjs",
+    "bake": "node scripts/bake-fields.mjs && node scripts/bake-spectra.mjs && node scripts/bake-vortex-lines.mjs && node scripts/bake-elements.mjs && node scripts/bake-previews.mjs && node scripts/bake-native-previews.mjs && node scripts/bake-bench-previews.mjs",
     "test": "node --test tests/*.test.mjs"
   },
   "engines": {

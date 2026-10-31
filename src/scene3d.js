@@ -41,7 +41,7 @@ export class FieldScene{
   this.uniforms={energyMap:{value:this.emptyTexture},electricMap:{value:this.emptyTexture},magneticMap:{value:this.emptyTexture},extraMap:{value:this.emptyTexture},dimensions:{value:new THREE.Vector3(1,1,1)},halfWidth:{value:17},zMax:{value:56},incidentLength:{value:10},plateHalf:{value:10},timePhase:{value:0},opacity:{value:.65},threshold:{value:.035},exposure:{value:1.1},steps:{value:512},fieldMode:{value:0},displayMode:{value:0},phaseReference:{value:0},planeSampling:{value:0},positiveColor:{value:shaderColor(PALETTES.cyan[0])},negativeColor:{value:shaderColor(PALETTES.cyan[1])},lowColor:{value:shaderColor(PALETTES.cyan[4])},midColor:{value:shaderColor(PALETTES.cyan[5])},highColor:{value:shaderColor(PALETTES.cyan[6])},reveal:{value:1}};
   Object.assign(this.uniforms,{phaseHue:{value:0},rightElectric:{value:this.emptyTexture},rightMagnetic:{value:this.emptyTexture},rightExtra:{value:this.emptyTexture},rightDimensions:{value:new THREE.Vector3(1,1,1)},slitPhase:{value:0},interferenceEnabled:{value:false}});
   Object.assign(this.uniforms,{nodalCount:{value:0},nodalPoints:{value:Array.from({length:12},()=>new THREE.Vector2())}});
-  Object.assign(this.uniforms,{focusWindow:{value:new THREE.Vector2(-1,-1)},interfaceZ:{value:0},volumeContrast:{value:1},fieldReference:{value:1}});
+  Object.assign(this.uniforms,{viewHeight:{value:17},densityDetector:{value:false},nativeField:{value:false},fineSampling:{value:false},focusWindow:{value:new THREE.Vector2(-1,-1)},interfaceZ:{value:0},volumeContrast:{value:1},fieldReference:{value:1}});
   this.volumeMaterial=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:volumeVertex,fragmentShader:volumeFragment,uniforms:this.uniforms,transparent:true,side:THREE.BackSide,depthWrite:false,depthTest:false});
   this.volumeMesh=new THREE.Mesh(new THREE.BoxGeometry(66,34,34).translate(23,0,0),this.volumeMaterial);this.volumeMesh.layers.set(1);this.volumeMesh.visible=false;this.volumeMesh.frustumCulled=false;this.volumeMesh.renderOrder=0;this.scene.add(this.volumeMesh);
   this.eArrows=makeArrows(PALETTES.cyan[2]);this.bArrows=makeArrows(PALETTES.cyan[3]);this.scene.add(this.eArrows,this.bArrows);
@@ -90,10 +90,12 @@ export class FieldScene{
    camera.layers.set(2);await this.renderer.compileAsync(staging,camera,this.scene);
    // Offscreen prepasses use linear output and no tone mapping. Preparing only
    // the canvas variants still triggers shader compilation on the first frame.
-   camera.layers.set(4);const previousTarget=this.renderer.getRenderTarget();
-   this.renderer.setRenderTarget(this.depthTarget);
-   const prepass=this.renderer.compileAsync(staging,camera,this.scene);
-   this.renderer.setRenderTarget(previousTarget);await prepass;
+   const previousTarget=this.renderer.getRenderTarget();
+   for(const [layer,target]of[[4,this.depthTarget],[5,this.elementTarget],[3,this.guideTarget]]){
+    camera.layers.set(layer);this.renderer.setRenderTarget(target);
+    const prepass=this.renderer.compileAsync(staging,camera,this.scene);
+    this.renderer.setRenderTarget(previousTarget);await prepass;
+   }
    this.shaderPreparation??=(async()=>{const sharedCamera=this.camera.clone();sharedCamera.layers.set(0);await this.renderer.compileAsync(this.scene,sharedCamera);sharedCamera.layers.set(2);await this.renderer.compileAsync(this.scene,sharedCamera);await this.renderer.compileAsync(this.previewScene,this.previewCamera);await this.renderer.compileAsync(this.transitionScene,this.previewCamera);})();
    await this.shaderPreparation;
    const maps=new Set();staging.traverse(object=>{for(const material of(Array.isArray(object.material)?object.material:[object.material])){if(material?.map)maps.add(material.map);for(const uniform of Object.values(material?.uniforms||{}))if(uniform.value?.isTexture&&uniform.value.image)maps.add(uniform.value);}});
@@ -114,17 +116,19 @@ export class FieldScene{
  discardPrepared(bundle){if(bundle)for(const root of Object.values(bundle))dispose(root);}
  setExperiment(e,volume,gpu,prepared){
 
-  const changed=this.experiment?.id!==e.id;if(changed){this.pendingAppearance=null;this.clearAuxiliary();this.setSlitPhase(0);this.presentationStart=0;const app=document.getElementById('app');app.dataset.ready='false';app.dataset.presented='false';for(const el of document.querySelectorAll('.world-label,#detector-handle')){el.hidden=true;delete el.dataset.positioned;}}this.experiment=e;this.volume=volume;this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.kind==='beams'?0:10;
+  const changed=this.experiment?.id!==e.id;if(changed){this.pendingAppearance=null;this.clearAuxiliary();this.setSlitPhase(0);this.presentationStart=0;const app=document.getElementById('app');app.dataset.ready='false';app.dataset.presented='false';for(const el of document.querySelectorAll('.world-label,#detector-handle')){el.hidden=true;delete el.dataset.positioned;}}this.experiment=e;this.volume=volume;this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.analytic||e.kind==='beams'?0:10;this.viewHeight=e.viewHeight||e.half;this.uniforms.viewHeight.value=this.viewHeight;this.uniforms.densityDetector.value=!!e.energyDensity;this.uniforms.nativeField.value=!!e.analytic;this.uniforms.fineSampling.value=!!e.analytic&&e.id!=='phase-microscope';
   for(const name of['electricMap','magneticMap','extraMap','energyMap'])if(this.uniforms[name].value!==this.emptyTexture)this.uniforms[name].value.dispose();
   [this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]=gpu||[...volume.textures.map(t=>texture3D(t,volume.nx,volume.ny,volume.nz)),energyTexture(volume.energy,volume.nx,volume.ny,volume.nz)];
   this.uniforms.dimensions.value.set(volume.nx,volume.ny,volume.nz);this.uniforms.zMax.value=e.zMax;this.uniforms.travelMax.value=e.zMax;this.uniforms.halfWidth.value=e.half;this.uniforms.plateHalf.value=plateHalf(e);
   this.uniforms.interfaceZ.value=volume.interfaceZ||0;this.uniforms.fieldReference.value=volume.maxE;
   this.volumeMesh.geometry.dispose();this.volumeMesh.geometry=new THREE.BoxGeometry(e.zMax+this.incidentLength,2*e.half,2*e.half).translate((e.zMax-this.incidentLength)/2,0,0);this.volumeMesh.visible=true;
-  this.screen.scale.set(e.half*2,e.half*2,1);this.updateFrame();this.prepareVectorSamples();
+  this.screen.scale.set(e.half*2,this.viewHeight*2,1);this.updateFrame();this.prepareVectorSamples();
   if(changed){
    if(!prepared)throw Error('Optical setup was not prepared');
    this.setupVersion=(this.setupVersion||0)+1;this.revealStart=performance.now();
    for(const name of ['optic','illumination','models','topology']){dispose(this[name]);this.scene.remove(this[name]);this[name]=prepared[name];this.scene.add(this[name]);}
+   for(const el of document.querySelectorAll('[data-bench-label]'))el.remove();
+   (this.optic.userData.labels||[]).forEach((label,i)=>{const el=document.createElement('div');el.id='bench-label-'+i;el.className='world-label component-label';el.dataset.benchLabel='true';el.textContent=label.text;el.hidden=true;document.getElementById('app').append(el);});
    this.surfaceReady=this.topologyReady=true;this.lightOptic();this.uniforms.maskMap.value=this.optic.userData.maskMap;this.uniforms.nodalCount.value=0;
    if(this.models.userData.target){this.models.userData.target.material.uniforms.cutZ.value=this.z;document.getElementById('app').dataset.modelVertices=String(this.models.userData.meta.vertices);}
    this.buildTrack();this.setDistance(e.z);this.setProbe(null);this.resetView(true);
@@ -135,6 +139,9 @@ export class FieldScene{
   document.getElementById('optic-name').textContent=e.opticLabel||(isProgrammable(e)?'Hologram display':e.kind==='beams'?'Coherent beam launchers':e.kind==='axicon'?'Axicon':e.kind==='phase'?'Phase relief + attenuation':'Aperture');
  }
  applyAppearance(options,force=false){
+  // A refinement can land between a click and the next rendered frame.
+  // Preserve the latest queued view rather than reinstating the old view.
+  if(force&&this.pendingAppearance)options={...options,...this.pendingAppearance};
   this.pendingAppearance=null;
   const old=this.options;this.options={...old,...options};const o=this.options,u=this.uniforms,p=PALETTES[o.palette]||PALETTES.cyan;
   u.planeSampling.value=o.planeSampling==='instantaneous'?1:0;u.phaseReference.value=o.phaseReference==='instantaneous'?1:0;u.phaseHue.value={cyan:0,amber:1.05,silver:2.1}[o.palette];u.opacity.value=o.opacity;u.threshold.value=o.threshold;u.exposure.value=o.exposure;u.displayMode.value={field:0,energy:1,phase:2}[o.display];u.incidentLength.value=o.incident?this.incidentLength||0:0;
@@ -156,14 +163,14 @@ export class FieldScene{
  setSlitPhase(phase){this.uniforms.slitPhase.value=phase;this.eArrows.material.uniforms.slitPhase.value=this.bArrows.material.uniforms.slitPhase.value=phase;document.getElementById('app').dataset.slitPhase=String(phase);}
  setMode(mode){this.mode=mode;this.eArrows.visible=mode==='electric'||mode==='both';this.bArrows.visible=mode==='magnetic'||mode==='both';this.uniforms.fieldMode.value=0;}
  buildTrack(){
-  dispose(this.track);this.track.clear();const y=-this.half-1.2,start=-this.incidentLength;
+  dispose(this.track);this.track.clear();const y=-this.viewHeight-1.2,start=-this.incidentLength;
   for(let x=-this.half;x<=this.half;x+=5)this.track.add(line([[start,y,x],[this.zMax,y,x]],0x536e7b,.065));
   for(let z=start;z<=this.zMax;z+=5)this.track.add(line([[z,y,-this.half],[z,y,this.half]],0x536e7b,.065));
   this.track.add(line([[start,y,0],[this.zMax,y,0]],0x8ba5ad,.24));
  }
  updateFrame(){
-  dispose(this.frame);this.frame.clear();const h=this.half;const rim=line([[0,-h,-h],[0,h,-h],[0,h,h],[0,-h,h],[0,-h,-h]],0x9ab8c3,.25);rim.layers.set(2);this.frame.add(rim);
-  if(this.options.detectorZoom>1.01){const a=h/this.options.detectorZoom,l=a*.18;for(const sy of[-1,1])for(const sz of[-1,1]){const corner=line([[.03,sy*(a-l),sz*a],[.03,sy*a,sz*a],[.03,sy*a,sz*(a-l)]],0xc1e4e9,.48);corner.layers.set(2);this.frame.add(corner);}}
+  dispose(this.frame);this.frame.clear();const h=this.half,v=this.viewHeight||h;const rim=line([[0,-v,-h],[0,v,-h],[0,v,h],[0,-v,h],[0,-v,-h]],0x9ab8c3,.25);rim.layers.set(2);this.frame.add(rim);
+  if(this.options.detectorZoom>1.01){const a=h/this.options.detectorZoom,b=v/this.options.detectorZoom,l=Math.min(a,b)*.18;for(const sy of[-1,1])for(const sz of[-1,1]){const corner=line([[.03,sy*(b-l),sz*a],[.03,sy*b,sz*a],[.03,sy*b,sz*(a-l)]],0xc1e4e9,.48);corner.layers.set(2);this.frame.add(corner);}}
  }
  setDistance(z){
   this.z=Math.max(.5,Math.min(this.zMax,z));this.detector.position.x=this.z;this.detectorUniforms.detectorZ.value=this.z;if(this.models.userData.target)this.models.userData.target.material.uniforms.cutZ.value=this.z;
@@ -187,15 +194,16 @@ export class FieldScene{
  resize(){const width=this.container.clientWidth,height=this.container.clientHeight,r=document.getElementById('scene-space').getBoundingClientRect();if(!width||!height)return;const change=this.width!==width||this.height!==height||this.mainWidth!==r.width||this.mainHeight!==r.height;this.width=width;this.height=height;this.mainWidth=r.width;this.mainHeight=r.height;this.renderer.setSize(width,height);const ratio=this.renderer.getPixelRatio(),rw=Math.round(r.width*ratio),rh=Math.round(r.height*ratio);this.depthTarget.setSize(rw,rh);this.elementTarget.setSize(rw,rh);this.guideTarget.setSize(rw,rh);this.uniforms.viewportSize.value.set(rw,rh);this.uniforms.viewportOrigin.value.set(0,Math.round((height-r.height)*ratio));this.transitionTexture?.dispose();this.transitionTexture=new THREE.FramebufferTexture(rw,rh);this.transitionMaterial.uniforms.map.value=this.transitionTexture;this.camera.aspect=r.width/r.height;this.updatePreviewRect();this.camera.updateProjectionMatrix();if(change)this.resetView(true);}
  updatePreviewRect(){const r=this.previewElement.getBoundingClientRect();this.previewRect={x:r.left,y:this.height-r.bottom,width:r.width,height:r.height};}
  resetView(immediate=false,view='3d'){
-  const bunny=this.experiment?.object==='bunny',start=bunny?-104:this.experiment?.kind==='beams'?-14:-28,target=new THREE.Vector3((this.zMax+start)*.5,0,0),direction=new THREE.Vector3(...({side:[0,.07,1],end:[1,.04,.001],field:[-.58,.43,1],'3d':[-.58,.43,1]}[view]||[-.58,.43,1])).normalize();
+  const bunny=this.experiment?.object==='bunny',start=this.experiment?.analytic?0:bunny?-104:this.experiment?.kind==='beams'?-14:-28,target=new THREE.Vector3((this.zMax+start)*.5,0,0),direction=new THREE.Vector3(...({side:[0,.07,1],end:[1,.04,.001],field:[-.58,.43,1],'3d':this.experiment?.viewDirection||[-.58,.43,1]}[view]||[-.58,.43,1])).normalize();
   const capture=document.body.classList.contains('thumbnail-export'),mobile=this.width<1100&&this.height>this.width,galleryBottom=document.getElementById('experiments').getBoundingClientRect().bottom,bottomReserve=mobile?this.previewRect.height+100:60,usableW=this.mainWidth-(capture?65:mobile?30:this.previewRect.width+72),usableH=capture?this.mainHeight-45:this.mainHeight-galleryBottom-bottomReserve-25;
   this.camera.setViewOffset(this.mainWidth,this.mainHeight,capture||mobile?0:(this.previewRect.width+40)/2,capture?0:(bottomReserve-galleryBottom)/2,this.mainWidth,this.mainHeight);this.camera.updateProjectionMatrix();
   if(capture)target.set(bunny?-70:-6,0,0);
-  const right=new THREE.Vector3().crossVectors(this.camera.up,direction).normalize(),up=new THREE.Vector3().crossVectors(direction,right),tan=Math.tan(THREE.MathUtils.degToRad(18));let distance=30;
+  const right=new THREE.Vector3().crossVectors(this.camera.up,direction).normalize(),up=new THREE.Vector3().crossVectors(direction,right),tan=Math.tan(THREE.MathUtils.degToRad(18));let distance=this.experiment?.analytic?5:30;
   const points=capture?[]:(this.vectorSamples||[]).map(s=>s.origin),h=this.experiment?plateHalf(this.experiment):this.half;
   if(bunny)for(const x of[-103,-40])for(const y of[-29,28])for(const z of[-19,25])points.push([x,y,z]);if(!capture||!bunny)for(const point of this.illumination.userData.fit||[])points.push(point);
-  if(!capture||!bunny)for(const y of[-h,h+1.8])for(const z of[-h,h])for(const x of[start,0])points.push([x,y,z]);
-  if(!capture)for(const y of[-this.half-1.5,this.half])for(const z of[-this.half,this.half])points.push([this.z,y,z]);
+  if((!capture||!bunny)&&!this.experiment?.analytic)for(const y of[-h,h+1.8])for(const z of[-h,h])for(const x of[start,0])points.push([x,y,z]);
+  if(this.experiment?.analytic)for(const x of[0,this.zMax])for(const y of[-this.viewHeight-.4,this.viewHeight+.4])for(const z of[-this.half,this.half])points.push([x,y,z]);
+  if(!capture)for(const y of[-this.viewHeight-1.5,this.viewHeight])for(const z of[-this.half,this.half])points.push([this.z,y,z]);
   if(view==='field'){target.set(this.experiment?.vortex?22:this.experiment?.id==='saturn'?40:this.z,0,0);points.length=0;const extent=this.experiment?.vortex?7:this.experiment?.id==='saturn'?15:Math.min(this.half,12);for(const x of[-extent,extent])for(const y of[-extent,extent])for(const z of[-extent,extent])points.push([target.x+x,y,z]);}
   if(!points.length)points.push([0,-this.half,-this.half],[this.zMax,this.half,this.half]);
   for(const point of points){const p=new THREE.Vector3(...point).sub(target);distance=Math.max(distance,Math.abs(p.dot(right))/(tan*this.camera.aspect*Math.max(.24,usableW/this.mainWidth))+p.dot(direction),Math.abs(p.dot(up))/(tan*Math.max(.24,usableH/this.mainHeight))+p.dot(direction));}
@@ -208,7 +216,7 @@ export class FieldScene{
   this.renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};this.cameraTween=null;this.transitionStart=0;});
   this.renderer.domElement.addEventListener('pointerup',e=>{if(!down||e.clientX>this.mainWidth||e.clientY>this.mainHeight||Math.hypot(e.clientX-down.x,e.clientY-down.y)>4||!this.volume||!this.options.detector)return;ray.setFromCamera(new THREE.Vector2(e.clientX/this.mainWidth*2-1,1-e.clientY/this.mainHeight*2),this.camera);const hit=ray.intersectObject(this.screen)[0];if(hit)this.onProbe(-hit.point.z,hit.point.y);});
   const handle=document.getElementById('detector-handle');
-  handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.setPointerCapture(e.pointerId);this.controls.enabled=false;this.cameraTween=null;const a=this.project([this.z,-this.half-1.2,0]),b=this.project([this.z+1,-this.half-1.2,0]);this.drag={x:e.clientX,y:e.clientY,z:this.z,dx:b.x-a.x,dy:b.y-a.y};});
+  handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.setPointerCapture(e.pointerId);this.controls.enabled=false;this.cameraTween=null;const a=this.project([this.z,-this.viewHeight-1.2,0]),b=this.project([this.z+1,-this.viewHeight-1.2,0]);this.drag={x:e.clientX,y:e.clientY,z:this.z,dx:b.x-a.x,dy:b.y-a.y};});
   handle.addEventListener('pointermove',e=>{if(!this.drag)return;const d=this.drag,den=Math.max(.05,d.dx*d.dx+d.dy*d.dy),delta=((e.clientX-d.x)*d.dx+(e.clientY-d.y)*d.dy)/den;this.onDistance(Math.max(.5,Math.min(this.zMax,d.z+delta)));});
   const stop=()=>{this.drag=null;this.controls.enabled=true;};for(const name of['pointerup','pointercancel','lostpointercapture'])handle.addEventListener(name,stop);
  }
@@ -246,8 +254,9 @@ export class FieldScene{
   if(this.cameraTween){const t=this.cameraTween,f=Math.min(1,(now-t.start)/380),s=1-(1-f)**3;this.camera.position.lerpVectors(t.from,t.to,s);this.controls.target.lerpVectors(t.fromTarget,t.target,s);if(f===1)this.cameraTween=null;}
   this.uniforms.reveal.value=1;this.eArrows.material.uniforms.reveal.value=this.bArrows.material.uniforms.reveal.value=1;
   this.controls.update();this.camera.updateMatrixWorld();this.studioUniforms.studioDirection.value.copy(this.lightRig.key.position).transformDirection(this.camera.matrixWorldInverse);this.uniforms.timePhase.value=phase;this.eArrows.material.uniforms.timePhase.value=this.bArrows.material.uniforms.timePhase.value=phase;
-  this.labelItems=[];this.positionLabel('detector-handle',[this.z,-this.half-1.2,0],this.options.detector);
-  if(this.options.labels){if(this.experiment){const h=plateHalf(this.experiment);this.positionLabel('optic-label',[0,h+1.1,0]);this.positionLabel('incident-label',[-10,h*.94+2,0],this.options.incident&&this.experiment.kind!=='beams');}const bunny=this.experiment?.object==='bunny';this.positionLabel('source-label',[-75,-18,0],bunny);this.positionLabel('sensor-label',[-42,22,0],bunny);this.positionLabel('processor-label',[-41,-30,23],bunny);this.positionLabel('object-light-label',[-57,20,27],bunny);this.positionLabel('reference-light-label',[-64,27,-7],bunny);this.positionLabel('target-label',[32,23,0],this.experiment?.object==='bunny'&&this.options.surfaceGuide);}
+  this.labelItems=[];this.positionLabel('detector-handle',[this.z,-this.viewHeight-1.2,0],this.options.detector);
+  (this.optic.userData.labels||[]).forEach((label,i)=>this.positionLabel('bench-label-'+i,label.p,this.options.labels));
+  if(this.options.labels){if(this.experiment){const h=plateHalf(this.experiment);this.positionLabel('optic-label',this.optic.userData.label||[0,h+1.1,0]);this.positionLabel('incident-label',[-10,h*.94+2,0],this.options.incident&&!this.experiment.analytic&&this.experiment.kind!=='beams');}const bunny=this.experiment?.object==='bunny';this.positionLabel('source-label',[-75,-18,0],bunny);this.positionLabel('sensor-label',[-42,22,0],bunny);this.positionLabel('processor-label',[-41,-30,23],bunny);this.positionLabel('object-light-label',[-57,20,27],bunny);this.positionLabel('reference-light-label',[-64,27,-7],bunny);this.positionLabel('target-label',[32,23,0],this.experiment?.object==='bunny'&&this.options.surfaceGuide);}
   this.positionLabel('vortex-label',[this.experiment?.vortex?22:32,6.5,0],!!(this.options.labels&&this.experiment?.vortex&&this.options.vortexLines));
   const imageGuide=this.experiment?.id==='metamorphosis'?(this.topology.userData.imageGuides||[]).find(g=>Math.abs(g.z-this.z)<3):null;const designLabel=document.getElementById('design-label'),designText=imageGuide?imageGuide.name+' · guide':'Design curves';if(designLabel.textContent!==designText)designLabel.textContent=designText;this.positionLabel('design-label',[imageGuide?.z||40,10,0],!!(this.options.labels&&this.options.surfaceGuide&&(this.experiment?.id==='saturn'||imageGuide)));
   this.positionLabel('obstacle-label',[this.experiment?.interfaceZ||0,5,0],!!(this.options.labels&&this.experiment?.interfaceZ));

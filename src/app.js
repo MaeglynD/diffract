@@ -35,8 +35,9 @@ for(const img of gallery.querySelectorAll('img'))thumbnailObserver.observe(img);
 const centerSelection=setupGalleryMotion(gallery);
 let focusSeek=null,scanHold=0;
 function configureFocusStops(id){
- const strip=$('focus-stops');strip.hidden=id!=='metamorphosis';if(id!=='metamorphosis'||strip.children.length)return;
- IMAGE_DEPTHS.forEach((z,i)=>{const b=document.createElement('button');b.type='button';b.dataset.focus=String(z);b.setAttribute('aria-label',`${IMAGE_NAMES[i]} focus`);b.title=`${IMAGE_NAMES[i]} · ${z} wavelengths`;b.setAttribute('aria-pressed','false');b.innerHTML=imageIcon(i);b.addEventListener('click',()=>{state.sweeping=false;updateSweep();focusSeek={from:state.z,to:z,start:performance.now()};scene.cameraTween=null;scene.transitionStart=0;});strip.append(b);});
+ const strip=$('focus-stops'),microscope=id==='phase-microscope';strip.hidden=id!=='metamorphosis'&&!microscope;if(strip.dataset.setup===id)return;strip.dataset.setup=id;strip.setAttribute('aria-label',microscope?'Microscope observation planes':'Hologram image planes');strip.replaceChildren();if(strip.hidden)return;
+ const depths=microscope?[.5,40,80]:IMAGE_DEPTHS,names=microscope?['Specimen','Fourier plane','Image']:IMAGE_NAMES;
+ depths.forEach((z,i)=>{const b=document.createElement('button');b.type='button';b.dataset.focus=String(z);b.setAttribute('aria-label',names[i]+' focus');b.title=names[i];b.setAttribute('aria-pressed','false');b.innerHTML=microscope?'<span>'+names[i]+'</span>':imageIcon(i);b.addEventListener('click',()=>{state.sweeping=false;updateSweep();focusSeek={from:state.z,to:z,start:performance.now()};scene.cameraTween=null;scene.transitionStart=0;});strip.append(b);});
 }
 
 function loading(message,refining=false){$('loading').classList.toggle('ready',!message);$('loading').classList.toggle('refining',refining);$('loading-text').textContent=message||'';}
@@ -51,7 +52,7 @@ function acquire(id,quality,onProgress=()=>{}){
  if(cache.has(id)){const data=cache.get(id);cache.delete(id);cache.set(id,data);return Promise.resolve(data);}if(pending.has(key))return pending.get(key);
  const controller=new AbortController();controllers.set(key,controller);
  const clear=()=>{if(controllers.get(key)===controller){controllers.delete(key);pending.delete(key);}};
- const request=loadVolume(`./assets/fields/${id}${quality==='preview'?'.preview':''}.bin.gz`,controller.signal,onProgress).then(data=>{controller.signal.throwIfAborted();cache.set(id,data);const limit=(quality==='full'?320:72)*1024**2;while(cache.size>(quality==='full'?3:8)||[...cache.values()].reduce((n,v)=>n+v.buffer.byteLength+(v.energy?.byteLength||0),0)>limit){const oldest=[...cache.keys()].find(k=>k!==state.id&&k!==id);if(!oldest)break;cache.delete(oldest);}clear();return data;},error=>{clear();throw error;});pending.set(key,request);return request;
+ const request=loadVolume(`./assets/fields/${id}${quality==='preview'?'.preview':''}.bin.gz`,controller.signal,onProgress).then(data=>{controller.signal.throwIfAborted();const target=data.quality==='full'?full:cache;target.set(id,data);const complete=target===full,limit=(complete?320:72)*1024**2;while(target.size>(complete?6:8)||[...target.values()].reduce((n,v)=>n+v.buffer.byteLength+(v.energy?.byteLength||0),0)>limit){const oldest=[...target.keys()].find(k=>k!==state.id&&k!==id);if(!oldest)break;target.delete(oldest);}clear();return data;},error=>{clear();throw error;});pending.set(key,request);return request;
 }
 
 function markRequest(id,busy){
@@ -64,9 +65,9 @@ function commitExperiment(e,data,gpu,prepared){
  const id=e.id;focusSeek=null;scanHold=id==='metamorphosis'?1.8:0;configureFocusStops(id);
  state.id=id;state.z=e.z;state.sweepDirection=1;state.probe=null;state.sweeping=!thumbnail;state.slitPhase=0;updateSweep();
  $('app').dataset.experiment=id;$('app').dataset.pending='false';settings.useExperiment?.(id);
- $('slit-interference').hidden=id!=='double';$('slit-phase').value=0;paintRange($('slit-phase'));$('slit-phase').disabled=true;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=true;tex($('slit-phase-value'),String.raw`\delta=0`);
- $('surface-guide-setting').hidden=!e.object&&!['saturn','metamorphosis'].includes(id);$('surface-guide-label').textContent=id==='saturn'?'Design curves':id==='metamorphosis'?'Image guides':'Reconstruction surface';$('element-opacity-setting').hidden=e.kind==='beams';$('vortex-setting').hidden=!e.vortex;$('focus-emphasis-setting').hidden=!e.focusWindow;
- $('distance').max=e.zMax;$('distance').value=e.z;paintRange($('distance'));labelDirty=true;setProbe(null);detailsDirty=true;document.title=e.name+' · diffract';
+ $('slit-interference').hidden=!['double','michelson'].includes(id);$('slit-phase-title').textContent=id==='michelson'?'Return-arm optical delay':'Between the two slits';$('slit-phase').setAttribute('aria-label',id==='michelson'?'Relative arm phase':'Relative slit phase');$('slit-phase').value=0;paintRange($('slit-phase'));$('slit-phase').disabled=true;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=true;tex($('slit-phase-value'),String.raw`\delta=0`);
+ $('surface-guide-setting').hidden=!e.object&&!['saturn','metamorphosis'].includes(id);$('surface-guide-label').textContent=id==='saturn'?'Design curves':id==='metamorphosis'?'Image guides':'Reconstruction surface';$('element-opacity-setting').hidden=e.kind==='beams';$('show-incident').closest('label').hidden=!!e.analytic;$('vortex-setting').hidden=!e.vortex;$('focus-emphasis-setting').hidden=!e.focusWindow;
+ $('optic-label').querySelector('[data-tex]').hidden=!!e.analytic;$('distance').max=e.zMax;$('distance').value=e.z;paintRange($('distance'));labelDirty=true;setProbe(null);detailsDirty=true;document.title=e.name+' · diffract';
  firstFrame=false;showVolume(e,data,gpu,prepared);markRequest(id,false);
  warmDetails();
  for(const element of [document.querySelector('.view-modes'),$('distance-value'),$('focus-stops')]){element.getAnimations().forEach(a=>a.cancel());element.animate([{opacity:.25},{opacity:1}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});}
@@ -101,14 +102,14 @@ async function selectExperiment(id,fromHistory=false){
    await scene.captureTransition(420);if(!active()){gpu?.forEach(t=>t.dispose());return;}showVolume(e,detailed,gpu);gpu=null;
   }
   scene.computing=false;$('app').dataset.fullFieldMs=(performance.now()-Number($('app').dataset.selectedAt)).toFixed(1);
-  if(id==='double')loadSlitPartner(generation);else warmSpectra(id,generation);
+  if(['double','michelson'].includes(id))loadSlitPartner(generation);else warmSpectra(id,generation);
  }catch(error){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);if(active()){scene.computing=false;requestedId=null;markRequest(state.id,false);fail(error);}}
 }
-async function loadSlitPartner(generation){try{const data=await acquire('double-right','full');if(generation!==selection)return;const gpu=await scene.uploadVolume(data,()=>generation===selection);if(generation!==selection){gpu?.forEach(t=>t.dispose());return;}scene.setAuxiliary(data,gpu);$('slit-phase').disabled=false;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=false;}catch(error){if(generation===selection)fail(error);}}
+async function loadSlitPartner(generation){try{const data=await acquire(state.id==='michelson'?'michelson-right':'double-right','full');if(generation!==selection)return;const gpu=await scene.uploadVolume(data,()=>generation===selection);if(generation!==selection){gpu?.forEach(t=>t.dispose());return;}scene.setAuxiliary(data,gpu);$('slit-phase').disabled=false;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=false;}catch(error){if(generation===selection)fail(error);}}
 function setSlitPhase(value){state.slitPhase=Number(value)/1000*Math.PI;$('slit-phase').value=value;paintRange($('slit-phase'));tex($('slit-phase-value'),String.raw`\delta=${(state.slitPhase/Math.PI).toFixed(2)}\pi`);scene.setSlitPhase(state.slitPhase);probeDirty=true;}
 function showVolume(e,data,gpu,prepared){volume=data;scene.setExperiment(e,data,gpu,prepared);$('app').dataset.loadMetrics=JSON.stringify(data.loadMetrics);scene.setDistance(state.z);scene.setSlitPhase(state.slitPhase);scene.setProbe(state.probe);probeDirty=true;}
 const warmed=new Set();
-function warmSpectrum(id){if(warmed.has(id))return;warmed.add(id);fetch(spectrumUrl(id),{priority:'low'}).then(r=>{if(r.ok)return r.arrayBuffer();warmed.delete(id);}).catch(()=>warmed.delete(id));}
+function warmSpectrum(id){if(experiment(id).analytic||warmed.has(id))return;warmed.add(id);fetch(spectrumUrl(id),{priority:'low'}).then(r=>{if(r.ok)return r.arrayBuffer();warmed.delete(id);}).catch(()=>warmed.delete(id));}
 function warmSpectra(id,generation){if(generation!==selection)return;const index=EXPERIMENTS.findIndex(e=>e.id===id);for(const e of EXPERIMENTS.slice(Math.max(0,index-1),index+3))warmSpectrum(e.id);}
 gallery.addEventListener('pointerover',event=>{const button=event.target.closest('[data-experiment]');if(button)warmSpectrum(button.dataset.experiment);},{passive:true});
 gallery.addEventListener('focusin',event=>{const button=event.target.closest('[data-experiment]');if(button)warmSpectrum(button.dataset.experiment);});
@@ -119,21 +120,21 @@ function setDistance(z,manual=true){
  state.z=Math.max(.5,Math.min(experiment(state.id).zMax,z));$('distance').value=state.z;paintRange($('distance'));
  if(manual){scene.cameraTween=null;scene.transitionStart=0;}scene.setDistance(state.z);labelDirty=probeDirty=true;if(manual)latestDrag=lastInteraction=performance.now();
  $('app').dataset.distance=state.z.toFixed(4);if(manual)$('app').dataset.cameraAtInput=scene.camera.position.toArray().join(',');
- if(state.id==='metamorphosis')for(const button of $('focus-stops').children){const active=Math.abs(state.z-Number(button.dataset.focus))<1.8;if(button.getAttribute('aria-pressed')!==String(active))button.setAttribute('aria-pressed',String(active));}
+ if(['metamorphosis','phase-microscope'].includes(state.id))for(const button of $('focus-stops').children){const active=Math.abs(state.z-Number(button.dataset.focus))<1.8;if(button.getAttribute('aria-pressed')!==String(active))button.setAttribute('aria-pressed',String(active));}
 }
 function updateDistanceLabel(){tex($('distance-value'),String.raw`z=${state.z.toFixed(1)}\lambda`);tex($('physical-distance'),String.raw`${(state.z*.532).toFixed(2)}\,\mu\mathrm m`);$('distance').setAttribute('aria-valuetext',`${state.z.toFixed(1)} wavelengths`);labelDirty=false;}
-function setProbe(point){state.probe=point;scene?.setProbe(point);$('probe-readout').hidden=!point;$('clear-probe').hidden=!point;scene?.updatePreviewRect();probeDirty=true;}
+function setProbe(point){if(point&&state.id==='circulator'&&Math.abs(point.y)>experiment(state.id).viewHeight)point=null;state.probe=point;scene?.setProbe(point);$('probe-readout').hidden=!point;$('clear-probe').hidden=!point;scene?.updatePreviewRect();probeDirty=true;}
 const probeSample=new Float32Array(10);
 function number(n){if(Math.abs(n)<1e-7)return '0';if(Math.abs(n)<.001){const [a,b]=n.toExponential(1).split('e');return `${a}\\!\\times\\!10^{${Number(b)}}`;}return n.toFixed(3);}
 function updateProbe(){
  if(!state.probe||!volume)return;
- sampleField(volume,state.probe.x,state.probe.y,state.z,probeSample);if(scene.auxiliary&&state.id==='double')mixSlitPhase(probeSample,sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z),state.slitPhase);const phase=TAU*state.z-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
+ sampleField(volume,state.probe.x,state.probe.y,state.z,probeSample);if(scene.auxiliary&&['double','michelson'].includes(state.id))mixSlitPhase(probeSample,sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z),state.slitPhase);const phase=TAU*state.z-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
  tex($('probe-coordinates'),String.raw`(x,y)=(${state.probe.x.toFixed(1)},${state.probe.y.toFixed(1)})\lambda`);
  tex($('probe-electric'),String.raw`\frac{\mathbf E}{E_0}=\bigl(0,\,${number(real(0))},\,${number(real(2))}\bigr)`);
  tex($('probe-magnetic'),String.raw`\frac{c\mathbf B}{E_0}=\bigl(${number(real(4))},\,${number(real(6))},\,${number(real(8))}\bigr)`);
  tex($('probe-flux'),String.raw`\langle S_z\rangle/I_0=${number(normalizedFlux(probeSample))}`);probeDirty=false;
 }
-let detailsDirty=true;function updateDetails(){detailsDirty=false;const e=experiment(state.id);showElement(e,tex);$('equation-title').textContent=e.name;$('experiment-description').textContent=e.description;tex($('boundary-equation'),e.formula,true);tex($('parameter-equation'),e.parameters,true);}
+let detailsDirty=true;function updateDetails(){detailsDirty=false;const e=experiment(state.id);showElement(e,tex);$('equation-title').textContent=e.name;$('experiment-description').textContent=e.description;tex($('boundary-equation'),e.formula,true);tex($('parameter-equation'),e.parameters,true);$('spectral-model-info').hidden=!!e.analytic;$('native-model-info').hidden=!e.analytic||!!e.bench;$('bench-model-info').hidden=!e.bench;}
 function updatePlay(){const label=state.playing?'Pause optical cycle':'Play optical cycle';$('play').setAttribute('aria-label',label);$('play').title=label;$('play-path').setAttribute('d',state.playing?'M7 4v12m6-12v12':'M6 3l10 7-10 7z');}
 function togglePlay(){state.playing=!state.playing;updatePlay();}
 $('play').addEventListener('click',togglePlay);$('reset').addEventListener('click',()=>scene?.resetView(false));
@@ -163,8 +164,8 @@ function animate(now){
  if(!document.hidden&&scene){
   if(focusSeek&&volume){const t=Math.min(1,(now-focusSeek.start)/550),ease=t*t*(3-2*t);setDistance(focusSeek.from+(focusSeek.to-focusSeek.from)*ease,false);if(t===1)focusSeek=null;}
   if(state.sweeping&&volume){const e=experiment(state.id),[near,far]=e.scan||[.5,e.zMax],here=Math.max(near,Math.min(far,state.z));if(scanHold>0)scanHold=Math.max(0,scanHold-dt);else{
-   const stop=e.id==='metamorphosis'?(state.sweepDirection>0?IMAGE_DEPTHS.find(z=>z>here+.01):[...IMAGE_DEPTHS].reverse().find(z=>z<here-.01)):undefined;
-   const speed=stop===undefined?1:.3+.7*Math.min(1,Math.abs(stop-here)/4);let z=here+dt*(far-near)/12*speed*state.sweepDirection;
+   const stops=e.id==='metamorphosis'?IMAGE_DEPTHS:e.id==='phase-microscope'?[2,20,40,60,80]:[];const stop=state.sweepDirection>0?stops.find(z=>z>here+.01):[...stops].reverse().find(z=>z<here-.01);
+   const speed=stop===undefined?1:.3+.7*Math.min(1,Math.abs(stop-here)/4);let z=here+dt*(far-near)/(e.id==='phase-microscope'?32:12)*speed*state.sweepDirection;
    if(stop!==undefined&&(z-stop)*state.sweepDirection>=0){z=stop;scanHold=1.8;}
    if(z>=far||z<=near)state.sweepDirection*=-1;setDistance(Math.max(near,Math.min(far,z)),false);
   }}
