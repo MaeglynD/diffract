@@ -8,6 +8,10 @@ node_modules/
 /coverage/
 /.nyc_output/
 /.cache/
+/.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 *.tsbuildinfo
 
 # Local configuration and credentials (keep shareable examples)

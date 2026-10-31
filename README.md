@@ -54,7 +54,7 @@ git lfs pull
 node scripts/serve.mjs
 ```
 
-Use a Git clone with LFS rather than GitHub's source ZIP, which may contain pointers in place of the field data. For deployments, fetch LFS assets before building so that `dist/` contains the actual volumes.
+Use a Git clone with LFS rather than GitHub's source ZIP, which may contain pointers in place of the field data. For deployments, fetch LFS assets before building so that `dist/` contains the actual simulation data.
 
 Open **[127.0.0.1:5173](http://127.0.0.1:5173/)**.
 
@@ -70,6 +70,21 @@ node scripts/serve.mjs --dist
 The server binds to loopback. Set the `PORT` environment variable to use a different port. The build output in `dist/` can be served as static files.
 
 The complete field collection, including previews, is about **2 GiB compressed**. The browser loads the selected experiment, with smaller previews and a bounded cache; it does not download the entire collection on arrival. First-load time depends on the host and connection.
+
+### Deploy to Cloudflare
+
+The production build is entirely static. It packages the original compressed fields into content-addressed files of at most 16 MiB, below Cloudflare's per-file limit. The browser streams these pieces together before decompression; no field samples or precision are changed. There is no server-side Worker code, database, or R2 bucket.
+
+```sh
+npm ci
+git lfs pull
+npm run build
+node scripts/check-static.mjs
+npx wrangler login
+npx wrangler deploy
+```
+
+[`wrangler.jsonc`](wrangler.jsonc) attaches the site to **diffract.org**. For later updates, `npm run deploy` rebuilds and deploys. The full-size source volumes remain in Git LFS; generated chunks stay in the ignored `dist/` directory. [Cloudflare's static-asset pricing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/) lists free, unlimited asset requests and no storage charge. Domain renewal and any GitHub LFS usage are separate.
 
 ## The physics
 

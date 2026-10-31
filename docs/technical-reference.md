@@ -20,7 +20,7 @@ node scripts/build.mjs
 node scripts/serve.mjs --dist
 ```
 
-The server binds only to loopback. Set `PORT` to change its port. The build copies a complete static app, including the precomputed field volumes, into `dist/`. Large assets stream with backpressure, so the server does not allocate another complete asset buffer per request. ETag revalidation lets the browser reuse unchanged field files; settings are still never persisted.
+The server binds only to loopback. Set `PORT` to change its port. The build prepares a complete static app in `dist/`, splitting the precomputed gzip volumes into content-addressed pieces no larger than 16 MiB. A generated manifest preserves their order, original length, and SHA-256. The browser streams the pieces together and decompresses the original bytes in its worker, with one part prefetched ahead. Source development continues to use the original Git LFS files. `node scripts/check-static.mjs` verifies all 56 reconstructed volumes against their source hashes. Cloudflare serves this build as static assets without server-side application code or R2. Hashed chunks are cached immutably; application modules revalidate. Settings are still never persisted.
 
 ## Interaction
 

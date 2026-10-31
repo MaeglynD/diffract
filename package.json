@@ -8,8 +8,15 @@
     "dev": "node scripts/serve.mjs",
     "start": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
+    "deploy": "npm run build && wrangler deploy",
+    "preview:cloudflare": "wrangler dev",
     "bake": "node scripts/bake-fields.mjs && node scripts/bake-vortex-lines.mjs && node scripts/bake-elements.mjs && node scripts/bake-previews.mjs",
     "test": "node --test tests/*.test.mjs"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.0"
+  }
 }
