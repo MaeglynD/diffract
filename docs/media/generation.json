@@ -1,0 +1,28 @@
+{
+  "method": "Vector angular spectrum; Ey and cBx determine axial flux because Ex = 0",
+  "n": 512,
+  "lengthInWavelengths": 128,
+  "softNA": 0.48,
+  "maxNA": 0.58,
+  "focusInWavelengths": 72,
+  "detectorRange": [
+    72,
+    152
+  ],
+  "source": {
+    "frames": 120,
+    "fps": 15,
+    "width": 960,
+    "height": 400
+  },
+  "gif": {
+    "frames": 96,
+    "fps": 12,
+    "width": 720,
+    "height": 300,
+    "colors": 64
+  },
+  "fluxTargetCorrelation": 0.9727068315004875,
+  "maxRelativePowerDrift": 5.473399511402022e-14,
+  "display": "Fixed exposure, cyan luminance map; no target image composited into frames"
+}

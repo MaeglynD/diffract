@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#09131b">
+ <title>diffract · Electromagnetic diffraction</title>
+ <meta name="description" content="Explore electromagnetic fields throughout three-dimensional optical experiments.">
+ <meta name="application-name" content="diffract">
+ <link rel="icon" href="./assets/brand/favicon.ico" sizes="16x16 32x32 48x48">
+ <link rel="icon" href="./assets/brand/favicon.svg" type="image/svg+xml" sizes="any">
+ <link rel="apple-touch-icon" href="./assets/brand/apple-touch-icon.png">
+ <link rel="stylesheet" href="./vendor/katex/katex.min.css"><link rel="stylesheet" href="./src/gallery.css"><link rel="stylesheet" href="./src/settings.css">
+ <link rel="stylesheet" href="./src/workspace.css">
+ <link rel="stylesheet" href="./src/presentation.css">
+ <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/controls/OrbitControls.js":"./vendor/OrbitControls.js"}}</script>
+</head>
+<body>
+ <main id="app">
+  <div id="stage" aria-label="Three-dimensional electromagnetic field"></div>
+  <div id="scene-space" aria-hidden="true"></div><div class="instrument-rail" aria-hidden="true"></div>
+  <button id="optic-label" class="world-label" aria-label="Inspect optical element" title="Inspect optical element"><span id="optic-name">Amplitude + phase mask</span><span data-tex="z=0"></span></button>
+  <div id="incident-label" class="world-label incident-label">Collimating lens</div>
+  <div id="source-label" class="world-label" hidden>Illuminated object</div><div id="target-label" class="world-label" hidden>Reconstruction · surface guide</div>
+  <div id="sensor-label" class="world-label component-label" hidden>Hologram sensor</div>
+  <div id="processor-label" class="world-label component-label" hidden>Wavefront processor</div>
+  <div id="object-light-label" class="world-label component-label" hidden>Object illumination</div>
+  <div id="reference-light-label" class="world-label component-label" hidden>Reference light</div>
+  <div id="design-label" class="world-label" hidden>Design curves</div>
+  <div id="vortex-label" class="world-label" hidden><span data-tex="\widetilde E_y=0"></span> · phase singularities</div>
+  <div id="obstacle-label" class="world-label" hidden>Opaque obstacle</div>
+  <svg id="label-links" aria-hidden="true"></svg>
+  <div class="top-shade" aria-hidden="true"></div>
+  <div id="experiments" role="group" aria-label="Optical experiments"></div>
+
+  <div class="scene-controls" aria-label="View controls">
+   <div class="scene-actions"><button id="sweep" class="icon" aria-label="Play detector scan" title="Play detector scan" aria-pressed="false"><svg viewBox="0 0 20 20"><path id="sweep-path" d="M6 3l10 7-10 7z"/></svg></button>
+    <button id="details" class="icon" aria-label="About this optical setup" title="About this setup"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v5m0-8v.1"/></svg></button>
+    <button id="reset" class="icon" aria-label="Frame optical setup" title="Frame optical setup"><svg viewBox="0 0 20 20"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4M7 10h6m-3-3v6"/></svg></button>
+    <button id="settings-toggle" class="icon" aria-label="View settings" title="View settings" aria-expanded="false" aria-controls="settings-panel"><svg viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h14M7 3v4m6 1v4m-7 1v4"/></svg></button>
+   </div>
+  </div>
+  <aside id="settings-panel" class="settings-panel" aria-label="View settings" aria-hidden="true" inert>
+   <div class="settings-heading"><span>View settings</span><button id="close-settings" class="icon" aria-label="Close settings"><svg viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15"/></svg></button></div>
+   <div class="settings-tabs" role="tablist" aria-label="Settings groups"><button id="light-tab" role="tab" aria-selected="true" aria-controls="light-settings">Light</button><button id="vectors-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="vector-settings">Vectors</button><button id="scene-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="scene-settings">Scene</button></div>
+   <div class="settings-content">
+    <section id="light-settings" role="tabpanel" aria-labelledby="light-tab">
+     <div class="setting"><span class="setting-label">Colour</span><div class="palette-choices" role="group" aria-label="Colour palette"><button data-option="palette" data-value="cyan" aria-label="Ice palette" aria-pressed="true"><i class="swatch ice"></i><span>Ice</span></button><button data-option="palette" data-value="amber" aria-label="Ember palette" aria-pressed="false"><i class="swatch ember"></i><span>Ember</span></button><button data-option="palette" data-value="silver" aria-label="Pearl palette" aria-pressed="false"><i class="swatch pearl"></i><span>Pearl</span></button></div></div>
+     <div class="setting"><label for="display-gain">Brightness <output data-setting-value="exposure"></output></label><input id="display-gain" data-setting="exposure" type="range" min="0.3" max="3" step="0.05" aria-label="Brightness"></div>
+     <div class="setting"><span class="setting-label">Detector exposure</span><div class="segmented" role="group" aria-label="Detector exposure"><button data-option="detectorExposure" data-value="fixed" aria-pressed="false">Fixed</button><button data-option="detectorExposure" data-value="adaptive" aria-pressed="true">Adaptive</button></div><p class="setting-note">Fixed preserves brightness between planes. Adaptive reveals faint structure.</p></div>
+     <div class="setting"><label for="detector-zoom">Preview magnification <output data-setting-value="detectorZoom"></output></label><input id="detector-zoom" data-setting="detectorZoom" type="range" min="1" max="5" step="0.1" aria-label="Preview magnification"></div>
+     <div class="setting"><label for="volume-opacity">Volume density <output data-setting-value="opacity"></output></label><input id="volume-opacity" data-setting="opacity" type="range" min="0" max="1.5" step="0.01" aria-label="Volume density"></div>
+     <div class="setting"><label for="volume-contrast">Volume contrast <output data-setting-value="volumeContrast"></output></label><input id="volume-contrast" data-setting="volumeContrast" type="range" min="0.5" max="5" step="0.1" aria-label="Volume contrast"></div>
+     <div class="setting"><label for="field-threshold">Faint-field cutoff <output data-setting-value="threshold"></output></label><input id="field-threshold" data-setting="threshold" type="range" min="0" max="0.2" step="0.005" aria-label="Faint-field cutoff"></div>
+     <div id="field-sampling-setting" class="setting" hidden><span class="setting-label">Electric-field section</span><div class="segmented" role="group" aria-label="Electric field section sampling"><button data-option="planeSampling" data-value="average" aria-pressed="true">RMS amplitude</button><button data-option="planeSampling" data-value="instantaneous" aria-pressed="false">Instantaneous</button></div></div>
+     <div id="phase-reference-setting" class="setting" hidden><span class="setting-label">Phase reference</span><div class="segmented" role="group" aria-label="Phase reference"><button data-option="phaseReference" data-value="relative" aria-pressed="true">Relative</button><button data-option="phaseReference" data-value="instantaneous" aria-pressed="false">Instantaneous</button></div></div>
+     <div id="slit-interference" class="experiment-setting" hidden><div class="setting"><label for="slit-phase">Between the two slits <output id="slit-phase-value"></output></label><input id="slit-phase" type="range" min="-1000" max="1000" step="1" value="0" aria-label="Relative slit phase" disabled><div class="segmented"><button data-slit-phase="0">In phase</button><button data-slit-phase="1000">Opposed</button></div></div></div>
+    </section>
+    <section id="vector-settings" role="tabpanel" aria-labelledby="vectors-tab" hidden>
+     <div class="field-switches" role="group" aria-label="Field vectors"><button data-vector-toggle="electric" aria-pressed="true" aria-label="Electric vectors"><span data-tex="\mathbf E"></span><i></i></button><button data-vector-toggle="magnetic" aria-pressed="true" aria-label="Magnetic vectors"><span data-tex="\mathbf B"></span><i></i></button></div>
+     <div class="setting"><label for="vector-density">Vector density <output data-setting-value="density"></output></label><input id="vector-density" data-setting="density" type="range" min="3" max="9" step="1" aria-label="Vector density"></div>
+     <div class="setting"><label for="vector-scale">Arrow size <output data-setting-value="gain"></output></label><input id="vector-scale" data-setting="gain" type="range" min="0.4" max="3" step="0.05" aria-label="Arrow size"></div>
+     <div class="setting"><span class="setting-label">Arrow lengths</span><div class="segmented" role="group" aria-label="Arrow lengths"><button data-option="vectorScale" data-value="readable" aria-pressed="true">Readable</button><button data-option="vectorScale" data-value="physical" aria-pressed="false">Proportional</button></div><p id="vector-scale-note" class="setting-note"></p></div>
+     <div class="setting"><label for="playback-speed">Optical cycle <output data-setting-value="speed"></output></label><input id="playback-speed" data-setting="speed" type="range" min="0.04" max="0.6" step="0.01" aria-label="Optical cycle speed"></div>
+     <div class="setting"><div class="cycle-heading"><label id="phase-value" for="phase"></label><button id="play" class="icon" aria-label="Play optical cycle" title="Play optical cycle"><svg viewBox="0 0 20 20"><path id="play-path" d="M6 3l10 7-10 7z"/></svg></button></div><input id="phase" type="range" min="0" max="1000" value="0" aria-label="Optical cycle phase"></div>
+    </section>
+    <section id="scene-settings" role="tabpanel" aria-labelledby="scene-tab" hidden>
+     <label id="vortex-setting" class="switch" hidden><span>Trace phase singularities</span><input data-setting="vortexLines" type="checkbox" aria-label="Trace phase singularities"><i></i></label>
+     <label id="surface-guide-setting" class="switch" hidden><span id="surface-guide-label">Reconstruction surface</span><input data-setting="surfaceGuide" type="checkbox" aria-label="Reconstruction surface guide"><i></i></label>
+     <label class="switch"><span>Incoming illumination</span><input id="show-incident" data-setting="incident" type="checkbox"><i></i></label>
+     <label class="switch"><span>Detector plane</span><input id="show-detector" data-setting="detector" type="checkbox"><i></i></label>
+     <div class="setting"><label for="screen-opacity">Detector opacity <output data-setting-value="detectorOpacity"></output></label><input id="screen-opacity" data-setting="detectorOpacity" type="range" min="0" max="1" step="0.01" aria-label="Detector opacity"></div>
+     <div class="setting" id="element-opacity-setting"><label for="mask-opacity">Element display opacity <output data-setting-value="maskOpacity"></output></label><input id="mask-opacity" data-setting="maskOpacity" type="range" min="0" max="1" step="0.01" aria-label="Element display opacity"></div>
+     <label class="switch"><span>Component names</span><input id="show-labels" data-setting="labels" type="checkbox"><i></i></label><label class="switch"><span>Ground grid</span><input id="show-axes" data-setting="axes" type="checkbox"><i></i></label>
+     <label id="focus-emphasis-setting" class="switch" hidden><span>Emphasize reconstruction</span><input type="checkbox" data-setting="focusEmphasis" aria-label="Emphasize reconstruction"><i></i></label>
+     <div class="camera-choices" aria-label="Camera viewpoints"><button data-camera="3d">3D</button><button data-camera="side">Side</button><button data-camera="end">Along beam</button><button data-camera="field">Field detail</button></div>
+    </section>
+   </div>
+   <div class="settings-footer"><button id="reset-appearance">Reset this view</button></div>
+  </aside>
+  <div id="theme-toast" role="status" aria-live="polite"></div>
+  <button id="detector-handle" aria-label="Drag detector" title="Move detector"><svg viewBox="0 0 32 20"><path d="M1 10h30M5 6l-4 4 4 4m22-8l4 4-4 4"/><circle cx="16" cy="10" r="4"/></svg></button>
+  <aside class="detector-ui" aria-label="Detector">
+   <div class="view-modes" role="group" aria-label="Volume display">
+    <button data-option="display" data-value="field" aria-pressed="false"><span class="mode-symbol field-symbol"></span>Electric field</button>
+    <button data-option="display" data-value="energy" aria-pressed="true"><span class="mode-symbol energy-symbol"></span>Energy</button>
+    <button data-option="display" data-value="phase" aria-pressed="false"><span class="mode-symbol phase-symbol"></span>Phase</button>
+   </div>
+   <div class="detector-heading"><span id="detector-quantity" data-tex="\langle S_z\rangle"></span><button id="clear-probe" aria-label="Clear probe" hidden>×</button></div>
+   <div id="probe-readout" hidden><div id="probe-coordinates"></div><div id="probe-electric"></div><div id="probe-magnetic"></div><div id="probe-flux"></div></div>
+   <div id="detector-image" tabindex="0" role="img" aria-label="Detector intensity. Click to inspect a point."></div>
+  <div class="distance-control">
+   <div id="focus-stops" class="focus-stops" role="group" aria-label="Hologram image planes" hidden></div>
+   <div class="distance-heading"><span id="distance-value"></span><span id="physical-distance" hidden></span></div>
+   <input id="distance" type="range" min="0.5" max="48" step="0.05" value="24" aria-label="Detector distance">
+  </div>
+  </aside>
+  <div id="loading" role="status" aria-live="polite"><span></span><span id="loading-text">Loading field</span></div>
+  <div id="error" role="alert" hidden></div>
+  <dialog id="equations">
+   <button id="close-details" class="close" aria-label="Close equations">×</button>
+   <h1 id="equation-title"></h1><p id="experiment-description"></p>
+   <div class="element-card"><canvas id="element-preview" width="200" height="200" aria-label="Optical element transmission"></canvas><div><span id="element-kind"></span><div id="element-legend"></div></div></div><p id="setup-note" hidden></p>
+   <div class="equation" id="boundary-equation"></div><div class="equation compact" id="parameter-equation"></div>
+   <h2>The fields</h2>
+   <div class="equation" data-display="true" data-tex="\mathbf E(\mathbf r,t)=\Re\{\widetilde{\mathbf E}(\mathbf r)e^{-i\omega t}\},\qquad \mathbf B(\mathbf r,t)=\Re\{\widetilde{\mathbf B}(\mathbf r)e^{-i\omega t}\}"></div>
+   <div class="equation" data-display="true" data-tex="\widetilde{\mathbf E}(\mathbf r)=\iint A(k_x,k_y)\begin{pmatrix}0\\1\\-k_y/k_z\end{pmatrix}e^{i\mathbf k\cdot\mathbf r}\,\frac{dk_x\,dk_y}{(2\pi)^2}"></div>
+   <div class="equation" data-display="true" data-tex="\widetilde{\mathbf B}_{\mathbf k}=\frac{\mathbf k\times\widetilde{\mathbf E}_{\mathbf k}}{\omega},\quad k_z=\sqrt{k^2-k_x^2-k_y^2},\quad k=\frac{2\pi}{\lambda},\quad\omega=ck"></div>
+   <p>The launch field is prescribed at the optical element. Its tangential components are <span data-tex="E_x=0"></span> and <span data-tex="E_y=\mathcal F^{-1}\{A\}"></span>, with <span data-tex="A=E_0W\mathcal F\{T\}"></span>. The longitudinal electric component and every magnetic component follow from Maxwell’s equations. No paraxial propagator is used.</p>
+   <h2>Superposition and detection</h2>
+   <div class="equation" data-display="true" data-tex="\widetilde{\mathbf E}=\sum_j\widetilde{\mathbf E}_j,\quad\widetilde{\mathbf B}=\sum_j\widetilde{\mathbf B}_j,\qquad \langle S_z\rangle=\frac{1}{2\mu_0}\Re\!\left(\widetilde{\mathbf E}\times\widetilde{\mathbf B}^{*}\right)\cdot\hat{\mathbf z}"></div>
+   <div class="equation compact" data-display="true" data-tex="I_0=\frac{\epsilon_0cE_0^2}{2},\qquad \frac{\langle S_z\rangle}{I_0}=-\Re\!\left[\frac{\widetilde E_y}{E_0}\left(\frac{c\widetilde B_x}{E_0}\right)^*\right]"></div>
+   <p>For the double slit, the right-opening field is stored separately and added with its adjustable phase: <span data-tex="\widetilde{\mathbf E}=\widetilde{\mathbf E}_L+e^{i\delta}\widetilde{\mathbf E}_R"></span>, with the same operation for <span data-tex="\widetilde{\mathbf B}"></span>. The reference peak uses the in-phase configuration. The fields are summed before intensity is formed. Cross terms create the bright and dark structure. The detector is a virtual sampling plane. Fixed exposure preserves brightness changes with distance; adaptive exposure reveals faint structure. Preview magnification enlarges the region marked by four corners on the three-dimensional plane. In Energy view its image shows nonnegative forward flux, normalized by a fixed volume-wide reference peak or an interpolated per-plane reference peak, and multiplied by display brightness, with a <span data-tex="0.43"></span> power curve to reveal faint structure; probe values remain linear. Electric field and Phase show the corresponding field quantity on the same observation plane; these are not images directly recorded by an ordinary intensity detector.</p>
+   <p>For a finite aperture of characteristic radius <span data-tex="a"></span>, the Fresnel number <span data-tex="F=a^2/(\lambda z)"></span> indicates the propagation regime. Aperture structure dominates near the element; the Fraunhofer pattern is approached when <span data-tex="F\ll1"></span>. Moving the detector changes the sampled plane, not the propagation equation.</p>
+   <h2>What is drawn</h2>
+   <p>Write the complex electric component as <span data-tex="\widetilde E_y=Ae^{i\phi}"></span>. Its real oscillation is <span data-tex="E_y(t)=A\cos(\phi-\omega t)"></span>. Phase colour represents the angle; brightness is weighted by the amplitude. At <span data-tex="A=0"></span> that angle is undefined. Such zeros form the phase-singularity curves traced in the knot and linked-ring setups. A loop around a simple singularity accumulates a phase change of <span data-tex="\pm2\pi"></span>. Other electric or magnetic components can remain nonzero there.</p>
+   <p>The default phase is <span data-tex="\arg(\widetilde E_y e^{-ikz})=\phi-kz\pmod{2\pi}"></span>: it subtracts the uniform phase advance of a reference plane wave, leaving the diffraction structure visible. Multiplication by this nonzero factor does not move a singularity. Dark areas indicate small component amplitude, not a particular phase angle. The bright dots mark the scanning plane's intersections with stationary nodal curves; no particles travel along those curves.</p>
+   <p>The volume is sampled in all three spatial dimensions. In the default palette, cyan and violet encode the positive and negative instantaneous <span data-tex="E_y"></span>, with opacity weighted by its absolute value after brightness and cutoff. Signed-field and optical-phase views follow the electric component. Electric and magnetic arrows can be selected independently. Arrows occupy fixed points throughout the illuminated volume; they are not particle trajectories. Samples concentrate on the field rather than empty space.</p>
+   <p>Cyan arrows show <span data-tex="\mathbf E/E_0"></span>; gold arrows show <span data-tex="c\mathbf B/E_0"></span>. Both share an adjustable graphical length scale. Readable mode divides both vectors at each anchor by the same complex-field envelope <span data-tex="a=\max(0.04,\sqrt{(|\widetilde{\mathbf E}|^2+c^2|\widetilde{\mathbf B}|^2)/(2E_0^2)})"></span>; directions, oscillation and their local amplitude ratio are preserved. Proportional mode uses a single scale everywhere. Initial arrow size is tuned to each setup. Probe components use the physical <span data-tex="(x,y,z)"></span> axes. All spatial axes have the same scale. Each angular-spectrum mode is transverse and has its magnetic partner fixed by Maxwell’s curl equations. Their superposition need not make the total electric and magnetic vectors perpendicular at every point.</p>
+   <p>The choices above the preview switch the volume and observation plane together. Energy displays mean energy density in the volume and axial flux on the plane. Electric-field sections default to <span data-tex="E_{y,\mathrm{rms}}=|\widetilde E_y|/\sqrt{2}"></span>; instantaneous sections remain available in the Light settings. The electric-field volume and arrows remain instantaneous. Energy opacity starts from the square root of the normalized time-averaged density, then uses the same display mapping; relative phase colours show <span data-tex="\arg(\widetilde E_y e^{-ikz})"></span>, revealing changes relative to the incident plane wave. Instantaneous phase shows <span data-tex="\arg(\widetilde E_y)-\omega t"></span>. Both are weighted by amplitude.</p>
+   <div class="equation compact" data-display="true" data-tex="\frac{\langle u\rangle}{u_0}=\frac{|\widetilde{\mathbf E}|^2+c^2|\widetilde{\mathbf B}|^2}{2E_0^2},\qquad u_0=\frac{\epsilon_0E_0^2}{2}"></div>
+   <p>Before a mask, an analytic incident plane wave makes the direction of illumination visible: <span data-tex="\mathbf E/E_0=\hat{\mathbf y}\cos(kz-\omega t)"></span> and <span data-tex="c\mathbf B/E_0=-\hat{\mathbf x}\cos(kz-\omega t)"></span>. Its displayed extent is softly cropped to the collimator. The upstream laser, lens and beam envelope indicate the illumination path; fields inside that hardware are not solved. The outgoing field is prescribed independently by the transmission model; reflected fields and the electromagnetic boundary layer are not simulated. The volume fades at the finite data boundaries for display only; detector and probe values are not faded.</p>
+   <div class="equation compact" data-tex="\lambda=532\,\mathrm{nm},\qquad T=\lambda/c\simeq1.775\,\mathrm{fs}"></div>
+   <p>Playback defaults to five seconds per optical cycle. The settings panel changes playback speed and optical phase. Pausing or moving the optical-cycle phase control changes the instantaneous vectors while the time-averaged Energy image remains steady. This is a monochromatic steady state: the source is already on. A physical switch-on front requires a time-dependent, broadband calculation. The floating play control scans the observation plane. Scanning starts automatically and pauses when the detector is moved manually. Optical-cycle playback is controlled separately in Vectors settings.</p>
+   <p>The bunny recording arm shows an illuminated 3D source, object/reference capture, and a connection to the replay element. Its object-wave energy is the reflected, conjugate counterpart of the calculated replay field. Capture fringes illustrate interference with the spherical reference from the drawn source. The object beam illuminates the sensor-facing surface; the displayed object wave is cropped there to avoid suggesting transmission through the bunny. This is an idealized coherent recording/replay diagram; source material scattering and an acquisition algorithm are not simulated. The translucent reconstructed mesh is an optional surface guide, not a replacement for the calculated field.</p>
+   <h2>Numerical model</h2>
+   <p>Each curated experiment is propagated ahead of time on a <span data-tex="512\times512"></span> angular-spectrum grid spanning <span data-tex="128\lambda\times128\lambda"></span>. The full complex fields are stored throughout a three-dimensional volume. The detector samples their real and imaginary parts directly on the GPU at its current position; there is no queued recalculation while dragging.</p>
+   <p>The stored transverse grid aligns with the propagation grid at <span data-tex="\Delta x=\Delta y=0.25\lambda"></span>, with axial spacing <span data-tex="\Delta z=0.5\lambda"></span>. Binary16 storage and trilinear interpolation introduce finite numerical error. The common <span data-tex="e^{ikz}"></span> carrier is removed before interpolation and restored analytically. An aligned half-resolution preview appears first and crossfades to the full field; cached full fields open directly. Preparation runs in a worker and full textures upload in small groups of depth layers. Energy ray marching uses a cached scalar density with a local interpolation correction; sampled RMS differences from direct propagation are below <span data-tex="2.8\%"></span> across these experiments. Detector flux and probe values are formed from the complex fields.</p>
+   <div class="equation compact" data-display="true" data-tex="W(q)=\begin{cases}1,&q\leq0.50\\\tfrac12\!\left[1+\cos\!\left(\pi\frac{q-0.50}{0.12}\right)\right],&0.50<q<0.62\\0,&q\geq0.62\end{cases},\quad q=k_\perp/k"></div>
+   <p>This is a band-limited aperture/launch-field model. Material scattering, reflections, thickness, edge charges, and evanescent waves are excluded. The optical elements are schematic representations of the prescribed transmission. Helicon, petal, caustic and vortex phase elements show an equivalent wrapped relief with <span data-tex="h=(\arg T+\pi)/\pi"></span> wavelengths at index contrast <span data-tex="0.5"></span>, with separate attenuation and a pupil stop. The bunny, five-focus and flat-image holograms use thin patterned displays representing ideal complex-amplitude modulation. They are not glass sculptures. Binary apertures are openings in an absorbing screen; the screen’s graphical transparency does not change its transmission or the computed field. The coloured mask preview in this information view encodes phase delay by hue and transmission amplitude by brightness. These are schematic encodings, not a material simulation. The axicon cone illustrates the equivalent thin-phase profile for an index contrast of 0.5. Colour palettes affect the signed-field and energy volumes and both detectors. In optical-phase view, changing palette rotates the cyclic hue reference.</p>
+   <div class="sources"><a href="https://graphics.stanford.edu/data/3Dscanrep/" target="_blank" rel="noreferrer">Bunny mesh · Stanford Computer Graphics Laboratory ↗</a><a href="https://www.sciencedirect.com/science/article/pii/0030401895006362" target="_blank" rel="noreferrer">Helicon fields ↗</a><a href="https://phys.libretexts.org/Bookshelves/Optics/BSc_Optics_(Konijnenberg_Adam_and_Urbach)/06%3A_Scalar_diffraction_optics/6.04%3A_Angular_Spectrum_Method" target="_blank" rel="noreferrer">Angular-spectrum propagation ↗</a><a href="https://www.physics.nyu.edu/grierlab/publication/curtis02/" target="_blank" rel="noreferrer">Three-dimensional holography ↗</a><a href="https://pure.strath.ac.uk/ws/portalfiles/portal/6008098/OpExFerrisWheel.pdf" target="_blank" rel="noreferrer">Rotating optical petals ↗</a></div>
+  </dialog>
+ </main>
+ <script type="module" src="./src/app.js"></script>
+</body>
+</html>

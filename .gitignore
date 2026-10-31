@@ -1,0 +1,36 @@
+# Local reference material and generated review captures
+/prompts-and-responses/
+/artifacts/
+
+# Dependencies, build output, and test caches
+node_modules/
+/dist/
+/coverage/
+/.nyc_output/
+/.cache/
+*.tsbuildinfo
+
+# Local configuration and credentials (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.npmrc
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Editor and operating-system files
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+*.log
+
+# Runtime assets, vendored dependencies, and docs/media are intentional.
+# Field volumes use Git LFS; see .gitattributes.

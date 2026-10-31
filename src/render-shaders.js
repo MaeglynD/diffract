@@ -1,0 +1,132 @@
+export const arrowFragment=`
+uniform vec3 color;uniform sampler2D elementDepth,elementColor,guideDepth,guideColor;
+uniform vec2 viewportSize,viewportOrigin;uniform bool showMask,showGuide;
+varying float shade,alpha;
+void main(){
+ vec2 uv=(gl_FragCoord.xy-viewportOrigin)/viewportSize;float visibility=1.;
+ if(showMask&&gl_FragCoord.z>texture2D(elementDepth,uv).r+.0000001)visibility*=1.-texture2D(elementColor,uv).a;
+ if(showGuide&&gl_FragCoord.z>texture2D(guideDepth,uv).r+.0000001)visibility*=1.-texture2D(guideColor,uv).a;
+ gl_FragColor=vec4(color*shade,alpha*visibility);
+}`;
+
+export const arrowVertex=`
+attribute vec3 origin,fieldReal,fieldImag,rightReal,rightImag,interference;attribute float carrier,envelope;
+uniform float timePhase,gain,opacity,zMax,incidentLength,reveal,slitPhase;uniform bool readable;varying float shade,alpha;
+void main(){
+ float phase=6.28318530718*carrier-timePhase,c=cos(slitPhase)-1.,s=sin(slitPhase);vec3 re=fieldReal+c*rightReal-s*rightImag,im=fieldImag+s*rightReal+c*rightImag;vec3 field=re*cos(phase)-im*sin(phase);float localEnvelope=sqrt(max(0.,envelope*envelope+(c*c+s*s)*interference.x+2.*(c*interference.y+s*interference.z)));if(readable)field/=max(localEnvelope,.04);float amp=length(field);
+ vec3 d=amp>.00001?field/amp:vec3(0.,1.,0.),ref=abs(d.z)<.85?vec3(0.,0.,1.):vec3(1.,0.,0.);
+ vec3 side=normalize(cross(d,ref)),third=cross(side,d);float width=min(1.,amp*5.);
+ vec3 pos=origin+d*position.y*amp*gain+(side*position.x+third*position.z)*width;
+ vec3 norm=side*normal.x+d*normal.y+third*normal.z;shade=.88+.12*abs(dot(norm,normalize(vec3(-1.,2.,3.))));
+ alpha=smoothstep(.015,.10,amp)*opacity*(1.-smoothstep(zMax-4.,zMax,origin.x))*reveal;
+ if(origin.x<0.)alpha*=incidentLength>0.? .65:0.;
+ gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.);
+}`;
+
+export const detectorFragment=`
+precision highp float;precision highp sampler3D;
+uniform sampler3D energyMap,electricMap,magneticMap,extraMap,rightElectric,rightMagnetic,rightExtra;
+uniform bool interferenceEnabled;uniform float slitPhase;uniform vec3 rightDimensions;
+uniform vec3 dimensions,positiveColor,negativeColor,lowColor,midColor,highColor;
+uniform float halfWidth,zMax,incidentLength,plateHalf,timePhase,opacity,threshold,exposure,steps,reveal,phaseHue;
+uniform int displayMode,phaseReference,planeSampling;
+vec2 phaseDelta(vec2 v){float c=cos(slitPhase)-1.,s=sin(slitPhase);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}
+uniform float interfaceZ,volumeContrast,fieldReference;uniform vec2 focusWindow;
+float axialIndex(float z){return z/zMax*(dimensions.z-(interfaceZ>0.?2.:1.))+(interfaceZ>0.&&z>=interfaceZ?1.:0.);}
+vec3 volumeUv(vec2 xy,float z){return vec3((xy*(dimensions.xy-1.)+.5)/dimensions.xy,(axialIndex(z)+.5)/dimensions.z);}
+vec3 texturePoint(vec3 p){return volumeUv(vec2(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5),p.x);}
+vec3 phaseColor(float phi){return .55+.43*cos(phi+phaseHue+vec3(0.,2.094395,4.18879));}
+vec3 energyColor(float value){vec3 tint=mix(lowColor,midColor,clamp(value,0.,1.));return mix(tint,highColor,clamp((value-.55)*1.4,0.,.7));}
+uniform float detectorZ,peak,detectorOpacity;uniform vec2 probe;uniform bool showProbe;uniform int nodalCount;uniform vec2 nodalPoints[12];
+vec4 samplePlane(vec2 xy){
+ vec3 uv=volumeUv(xy,detectorZ);
+ vec2 e=texture(electricMap,uv).rg,b=vec2(0.);
+ if(displayMode==1)b=texture(magneticMap,uv).rg;
+ if(interferenceEnabled&&slitPhase!=0.){vec3 ruv=(vec3(xy,detectorZ/zMax)*(rightDimensions-1.)+.5)/rightDimensions;e+=phaseDelta(texture(rightElectric,ruv).rg);if(displayMode==1)b+=phaseDelta(texture(rightMagnetic,ruv).rg);}
+ float value;vec3 color;float carrier=6.28318530718*detectorZ-timePhase;
+ if(displayMode==1){value=pow(clamp(max(0.,-dot(e,b))*exposure/max(peak,.000001),0.,1.),.43);color=mix(vec3(.008,.021,.033),energyColor(value),smoothstep(0.,.7,value));}
+ else if(displayMode==0){float v=planeSampling==0?length(e)*.70710678118:dot(e,vec2(cos(carrier),-sin(carrier)));value=pow(clamp(abs(v)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),v>=0.?positiveColor:negativeColor,value);}
+ else{float phi=atan(e.y,e.x)+(phaseReference==1?carrier:0.);value=pow(clamp(length(e)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),phaseColor(phi),value);}
+ float annotationAlpha=0.;for(int i=0;i<12;i++){if(i>=nodalCount)break;float d=length((xy-nodalPoints[i])*2.*halfWidth),mark=1.-smoothstep(.035,.075,abs(d-.19));color=mix(color,vec3(.88,.98,1.),mark*.9);annotationAlpha=max(annotationAlpha,mark*.94);}
+ if(showProbe){float ring=1.-smoothstep(.001,.004,abs(length(xy-probe)-.022));color=mix(color,vec3(.85,.97,1.),ring*.85);}
+ return vec4(color,max(detectorOpacity*(.035+.965*value),annotationAlpha));
+}
+
+uniform bool isPreview;uniform float previewAlpha,detectorZoom;in vec2 vUv;out vec4 outColor;
+void main(){outColor=samplePlane(isPreview?(vUv-.5)/detectorZoom+.5:vUv);if(isPreview)outColor.a=previewAlpha;}
+`;
+
+export const detectorVertex=`out vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+
+export const volumeFragment=`
+precision highp float;precision highp sampler3D;
+uniform sampler3D energyMap,electricMap,magneticMap,extraMap,rightElectric,rightMagnetic,rightExtra;
+uniform bool interferenceEnabled;uniform float slitPhase;uniform vec3 rightDimensions;
+uniform vec3 dimensions,positiveColor,negativeColor,lowColor,midColor,highColor;
+uniform float halfWidth,zMax,incidentLength,plateHalf,timePhase,opacity,threshold,exposure,steps,reveal,phaseHue;
+uniform int displayMode,phaseReference,planeSampling;
+vec2 phaseDelta(vec2 v){float c=cos(slitPhase)-1.,s=sin(slitPhase);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}
+uniform float interfaceZ,volumeContrast,fieldReference;uniform vec2 focusWindow;
+float axialIndex(float z){return z/zMax*(dimensions.z-(interfaceZ>0.?2.:1.))+(interfaceZ>0.&&z>=interfaceZ?1.:0.);}
+vec3 volumeUv(vec2 xy,float z){return vec3((xy*(dimensions.xy-1.)+.5)/dimensions.xy,(axialIndex(z)+.5)/dimensions.z);}
+vec3 texturePoint(vec3 p){return volumeUv(vec2(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5),p.x);}
+vec3 phaseColor(float phi){return .55+.43*cos(phi+phaseHue+vec3(0.,2.094395,4.18879));}
+vec3 energyColor(float value){vec3 tint=mix(lowColor,midColor,clamp(value,0.,1.));return mix(tint,highColor,clamp((value-.55)*1.4,0.,.7));}
+uniform float detectorZ,peak,detectorOpacity;uniform vec2 probe;uniform bool showProbe;uniform int nodalCount;uniform vec2 nodalPoints[12];
+vec4 samplePlane(vec2 xy){
+ vec3 uv=volumeUv(xy,detectorZ);
+ vec2 e=texture(electricMap,uv).rg,b=vec2(0.);
+ if(displayMode==1)b=texture(magneticMap,uv).rg;
+ if(interferenceEnabled&&slitPhase!=0.){vec3 ruv=(vec3(xy,detectorZ/zMax)*(rightDimensions-1.)+.5)/rightDimensions;e+=phaseDelta(texture(rightElectric,ruv).rg);if(displayMode==1)b+=phaseDelta(texture(rightMagnetic,ruv).rg);}
+ float value;vec3 color;float carrier=6.28318530718*detectorZ-timePhase;
+ if(displayMode==1){value=pow(clamp(max(0.,-dot(e,b))*exposure/max(peak,.000001),0.,1.),.43);color=mix(vec3(.008,.021,.033),energyColor(value),smoothstep(0.,.7,value));}
+ else if(displayMode==0){float v=planeSampling==0?length(e)*.70710678118:dot(e,vec2(cos(carrier),-sin(carrier)));value=pow(clamp(abs(v)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),v>=0.?positiveColor:negativeColor,value);}
+ else{float phi=atan(e.y,e.x)+(phaseReference==1?carrier:0.);value=pow(clamp(length(e)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),phaseColor(phi),value);}
+ float annotationAlpha=0.;for(int i=0;i<12;i++){if(i>=nodalCount)break;float d=length((xy-nodalPoints[i])*2.*halfWidth),mark=1.-smoothstep(.035,.075,abs(d-.19));color=mix(color,vec3(.88,.98,1.),mark*.9);annotationAlpha=max(annotationAlpha,mark*.94);}
+ if(showProbe){float ring=1.-smoothstep(.001,.004,abs(length(xy-probe)-.022));color=mix(color,vec3(.85,.97,1.),ring*.85);}
+ return vec4(color,max(detectorOpacity*(.035+.965*value),annotationAlpha));
+}
+
+uniform sampler2D sceneDepth,guideDepth,guideColor,maskMap,elementDepth,elementColor;
+uniform vec3 fieldOrigin,fieldSign;uniform float travelMax;
+uniform bool clipObject;uniform sampler2D objectFront;
+uniform mat4 inverseProjection,inverseView;
+uniform vec2 viewportSize,viewportOrigin;
+uniform bool showMask,showDetector,showGuide;
+uniform float maskOpacity;
+in vec3 vWorld;out vec4 outColor;
+float surfaceDistance(float depth,vec2 screen,vec3 rd){vec4 p=inverseProjection*vec4(screen*2.-1.,depth*2.-1.,1.);p/=p.w;p=inverseView*p;return dot(p.xyz-cameraPosition,rd);}
+void over(inout vec4 acc,vec4 layer){acc.rgb+=(1.-acc.a)*layer.rgb*layer.a;acc.a+=(1.-acc.a)*layer.a;}
+void sortSurfaces(inout float a,inout float b,inout vec4 ca,inout vec4 cb){if(a>b){float d=a;a=b;b=d;vec4 c=ca;ca=cb;cb=c;}}
+void main(){
+ vec3 worldRd=normalize(vWorld-cameraPosition),rd=worldRd*fieldSign,ro=(cameraPosition-fieldOrigin)*fieldSign;vec2 screen=(gl_FragCoord.xy-viewportOrigin)/viewportSize;
+ vec3 lo=vec3(-incidentLength,-halfWidth,-halfWidth),hi=vec3(travelMax,halfWidth,halfWidth);
+ vec3 aa=(lo-ro)/rd,bb=(hi-ro)/rd,nt=min(aa,bb),ft=max(aa,bb);
+ float start=max(0.,max(nt.x,max(nt.y,nt.z))),end=min(ft.x,min(ft.y,ft.z));
+ float opaque=texture(sceneDepth,screen).r;if(opaque<.999999)end=min(end,surfaceDistance(opaque,screen,worldRd));if(end<=start)discard;
+ float sd[3];vec4 sc[3];for(int j=0;j<3;j++){sd[j]=end+2.;sc[j]=vec4(0.);}
+ if(showMask){float depth=texture(elementDepth,screen).r;if(depth<.999999){float t=surfaceDistance(depth,screen,worldRd);if(t>=start-3.&&t<=end){sd[0]=max(start,t);sc[0]=texture(elementColor,screen);}}}
+ if(showDetector&&abs(rd.x)>.00001){float t=(detectorZ-ro.x)/rd.x;vec3 p=ro+rd*t;if(t>=start&&t<=end&&max(abs(p.y),abs(p.z))<=halfWidth){sd[1]=t;sc[1]=samplePlane(vec2(.5-p.z/(2.*halfWidth),.5+p.y/(2.*halfWidth)));}}
+ if(showGuide){float depth=texture(guideDepth,screen).r;if(depth<.999999){float t=surfaceDistance(depth,screen,worldRd);if(t>=start&&t<=end){sd[2]=t;sc[2]=texture(guideColor,screen);}}}
+ sortSurfaces(sd[0],sd[1],sc[0],sc[1]);sortSurfaces(sd[1],sd[2],sc[1],sc[2]);sortSurfaces(sd[0],sd[1],sc[0],sc[1]);
+ float count=min(steps,max(1.,ceil((end-start)/(displayMode==1?.28:.21)))),ds=(end-start)/count;vec4 acc=vec4(0.);int surface=0;
+ for(int i=0;i<512;i++){
+  if(float(i)>=count||acc.a>.985)break;float t=start+(float(i)+.5)*ds;
+  for(int j=0;j<3;j++){if(surface>=3||sd[surface]>t)break;over(acc,sc[surface]);surface++;}
+  vec3 p=ro+rd*t;vec4 e;float window;
+  if(p.x<0.){window=(1.-smoothstep(plateHalf*.9,plateHalf*.94,length(p.yz)))*smoothstep(-incidentLength,-incidentLength+.6,p.x)*.08;e=vec4(1.,0.,0.,0.);}
+  else{window=(1.-smoothstep(halfWidth*.82,halfWidth,max(abs(p.y),abs(p.z))))*(1.-smoothstep(zMax-max(7.,zMax*.15),zMax,p.x));if(window<.001)continue;e=displayMode==1&&(!interferenceEnabled||slitPhase==0.)?vec4(0.):texture(electricMap,texturePoint(p));if(interferenceEnabled&&slitPhase!=0.){vec3 ruv=(vec3(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5,p.x/zMax)*(rightDimensions-1.)+.5)/rightDimensions;e+=vec4(phaseDelta(texture(rightElectric,ruv).rg),phaseDelta(texture(rightElectric,ruv).ba));}}
+  if(clipObject){float front=texture(objectFront,vec2(.5-p.z/(2.*halfWidth),.5+p.y/(2.*halfWidth))).r;window*=1.-smoothstep(front-.3,front+.05,p.x);}
+  if(focusWindow.x>0.)window*=.06+.94*smoothstep(focusWindow.x-5.,focusWindow.x,p.x)*(1.-smoothstep(focusWindow.y,focusWindow.y+5.,p.x));
+  if(window<.001)continue;float phase=6.28318530718*p.x-timePhase,strength;vec3 tint;
+  if(displayMode==0){float value=dot(e.rg,vec2(cos(phase),-sin(phase)));strength=abs(value)*exposure;tint=value>=0.?positiveColor:negativeColor;}
+  else if(displayMode==1){if(p.x>=0.&&(!interferenceEnabled||slitPhase==0.)){vec4 density=texture(energyMap,texturePoint(p));vec3 fraction=fract(vec3(vec2(.5-p.z/(2.*halfWidth),.5+p.y/(2.*halfWidth))*(dimensions.xy-1.),axialIndex(p.x)));strength=sqrt(max(0.,density.r-.5*dot(fraction*(1.-fraction),density.gba)))*exposure;tint=energyColor(strength);}else{vec4 b=vec4(-1.,0.,0.,0.);vec2 bz=vec2(0.);if(p.x>=0.){vec3 uv=texturePoint(p);b=texture(magneticMap,uv);bz=texture(extraMap,uv).rg;if(interferenceEnabled&&slitPhase!=0.){vec3 ruv=(vec3(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5,p.x/zMax)*(rightDimensions-1.)+.5)/rightDimensions;vec4 br=texture(rightMagnetic,ruv);b+=vec4(phaseDelta(br.rg),phaseDelta(br.ba));bz+=phaseDelta(texture(rightExtra,ruv).rg);}}strength=sqrt(.5*(dot(e,e)+dot(b,b)+dot(bz,bz)))*exposure;tint=energyColor(strength);}}
+  else{strength=length(e.rg)*exposure;tint=phaseColor(atan(e.y,e.x)+(phaseReference==1?phase:0.));}
+  strength=max(strength-threshold,0.);strength=pow(strength/max(fieldReference,.001),volumeContrast)*max(fieldReference,.001);float alpha=1.-exp(-.9044*opacity*(28./max(zMax,28.))*strength*window*ds);over(acc,vec4(tint,alpha));
+ }
+ for(int j=0;j<3;j++){if(surface<3&&sd[surface]<=end){over(acc,sc[surface]);surface++;}}
+ if(acc.a<.002)discard;outColor=vec4(acc.rgb/max(acc.a,.0001),acc.a*reveal);
+}`;
+
+export const volumeVertex=`out vec3 vWorld;void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
+

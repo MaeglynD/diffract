@@ -1,0 +1,14 @@
+Stanford Bunny — Stanford University Computer Graphics Laboratory.
+Original zipper reconstruction: 35,947 vertices and 69,451 triangles.
+Source and terms: https://graphics.stanford.edu/data/3Dscanrep/
+Downloaded from Open3D's distribution of the Stanford data:
+https://github.com/isl-org/open3d_downloads/releases/download/20220201-data/BunnyMesh.ply
+
+Stanford permits research use and free redistribution with acknowledgement.
+Commercial use and inclusion in products for sale require Stanford's permission.
+See the source page for the full terms. The scan is not licensed under this
+application's code or Three.js license.
+
+The mesh was centered, uniformly scaled to a height of 24 wavelengths, and
+reflected along its depth axis for the optical coordinate system. A separate
+area-weighted surface sample is used to calculate the complex hologram.

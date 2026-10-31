@@ -1,0 +1,209 @@
+# Technical reference
+
+[← Back to diffract](../README.md)
+
+A local Three.js visualization of the complex electric and magnetic fields throughout a three-dimensional volume. Twenty-seven experiments are selected through diagram previews of their transmission, computed field structure and detector data. The detector samples the volume on the GPU as it moves; dragging does not invoke a solver or change the camera.
+
+## Run
+
+Install Git LFS before cloning, or retrieve its assets after cloning with `git lfs install` and `git lfs pull`. All `assets/fields/*.bin.gz` volumes, including previews, are stored in LFS. Fetch them before serving, testing, or building; a pointer file is not a usable field volume.
+
+```powershell
+node scripts/serve.mjs
+```
+
+Open http://127.0.0.1:5173/. Node 22 or later is required. No package installation, account, or external service is needed. Three.js and KaTeX are vendored with their licenses.
+
+```powershell
+node --test tests/*.test.mjs
+node scripts/build.mjs
+node scripts/serve.mjs --dist
+```
+
+The server binds only to loopback. Set `PORT` to change its port. The build copies a complete static app, including the precomputed field volumes, into `dist/`. Large assets stream with backpressure, so the server does not allocate another complete asset buffer per request. ETag revalidation lets the browser reuse unchanged field files; settings are still never persisted.
+
+## Interaction
+
+Choose an experiment from the image strip. The URL records the selection, for example `/#trefoil` or `/#metamorphosis`; opening a link, reloading, and browser Back/Forward restore that setup. Unknown fragments fall back to the first experiment, the trefoil. Only the setup is encoded, not session display adjustments. Drag to orbit, right-drag to pan, or scroll to zoom. The distance slider and the handle below the detector both move its sampling plane continuously. The camera remains fixed during detector movement and full-resolution refinement.
+
+Electric field, Energy and Phase sit immediately above the floating detector preview. The canvas spans the entire viewport, including behind the floating instruments. Scan, framing, information and settings controls sit in the lower-left corner of the viewport; settings open directly above their button without moving the preview or camera. On narrow screens the instruments occupy the area below the scene. Both the observation plane and preview follow the selected display: RMS electric component (instantaneous is optional), time-averaged axial flux, or optical phase. Palettes update the volume and both plane views. Brightness changes the display mapping, not the physical field. Optical phase defaults to the relative argument, $\arg(\widetilde E_y e^{-ikz})$, to expose diffraction structure without averaging many carrier cycles along a viewing ray. Instantaneous phase, $\arg(\widetilde E_y)-\omega t$, remains available. Changing palette rotates the cyclic phase hue reference.
+
+The detector slider has exactly the preview's width and a 42–44 px interaction region, including dragging above and below the thin visible track. Scanning starts automatically, and manual adjustment pauses it. The floating play button resumes scanning. Optical-cycle animation is controlled separately in the Vectors settings. The framing control fits the optical setup with a camera transition. Most sculptural presets start with vectors off; the two field toggles remain available. Basic interference examples retain vectors where they help explain the field. Short component names and a ground grid start visible. The coordinate-axis widget has been removed. Labels avoid each other and the detector preview; less essential source labels are omitted on small screens. Scene labels and the detector handle remain hidden until the field and required geometry are ready. Pointer clicks have no focus outline; keyboard focus retains a background or brightness cue.
+
+In the default palette, cyan arrows represent $\mathbf E/E_0$ and gold arrows represent $c\mathbf B/E_0$. Their fixed anchors follow the illuminated cross-section throughout the volume. Readable mode divides both instantaneous vectors at each anchor by the same complex-field envelope
+
+$$a=\max\left(0.04,\sqrt{\frac{|\widetilde{\mathbf E}|^2+c^2|\widetilde{\mathbf B}|^2}{2E_0^2}}\right).$$
+
+This preserves direction, time dependence and the local electric-to-magnetic amplitude ratio while making weak fields legible. Proportional mode uses one global scale, preserving amplitude comparisons between positions. Initial arrow size, density, volume density and cutoff are tuned per experiment in `src/display-presets.js`. Neither mode changes the calculated field or numerical probe. All three spatial axes have identical scale.
+
+The translucent inspector extends from just below the catalogue to the controls and has three views: Light (palette, brightness, density, cutoff and relevant field-section controls), Vectors (independent electric/magnetic toggles, sampling, size, scaling and optical playback), and Scene (hardware, detector, component names, ground grid and camera). There is no nested fine-adjustments accordion. Display settings last only for the current page session. Every reload restores defaults; legacy saved display preferences are removed. When switching setups, curated defaults update controls the user has not adjusted; explicit adjustments are retained. Reset this view restores the current setup’s defaults. For the double slit, a relative-phase control changes the physical superposition in real time; In phase and Opposed are reference states. The information dialog contains a compact transmission image, equations and model assumptions.
+
+Click either detector view to inspect local instantaneous components and time-averaged axial flux. The preview supports arrow-key probe movement. Space pauses or resumes the detector scan, R resets the camera, and 1–9 select the first nine experiments. Temporary theme trials cycle with **T**, or **Shift+T** in reverse. They are Deepwater, Obsidian, Graphite, Nocturne and Lamplight. The current name appears briefly after cycling; the settings header contains no theme label. Themes change scene background, hardware/element lighting and display palette, with a smooth transition; physical fields and probe values are unchanged. They reset on reload. Optical playback starts enabled; interface transitions remain enabled under reduced motion, as requested.
+
+Catalogue selection uses an interruptible quintic scroll transition, including when the OS disables native smooth scrolling. The edge fades withdraw at the ends so the first and last borders remain visible. Settings tabs fade in place without moving their content; continuous control updates are coalesced to one update per animation frame.
+
+## Experiments
+
+Highlighted setups explore topology, multi-plane holography and propagation past an obstruction:
+
+- **Trefoil phase knot** (`/#trefoil`): a finite Laguerre–Gaussian superposition whose complex electric component has a closed, knotted zero. The pale trace is extracted from the propagated field by intersecting its real and imaginary zero surfaces; it is not an imposed geometric knot. It has three same-sign crossings in a regular projection. The detector marks intersections with the same extracted curve. This is a zero of $\widetilde E_y$, not necessarily of the complete vector field or energy density. Context and optimized modal coefficients: [Dennis et al., Isolated optical vortex knots](https://doi.org/10.1038/nphys1504). This implementation uses full angular-spectrum propagation and verifies that the topology survives the finite pupil and bandlimit.
+- **Holographic metamorphosis** (`/#metamorphosis`): one complex-amplitude hologram creates a jellyfish at $16\lambda$, a logarithmic shell at $40\lambda$, and a butterfly at $64\lambda$. A 200-step, three-plane amplitude-error projection generates the boundary field. All three pictures emerge from propagation of that single boundary; neither the volume nor detector contains a pasted target image. Targets are deliberately broad enough for the finite numerical aperture. Context: [multi-plane hologram optimization](https://doi.org/10.1364/OE.27.008958); the implementation is its own complex-amplitude projection, not a reproduction of that paper's dynamic-compensation method.
+- **Self-healing light** (`/#healing`): a finite Bessel field encounters an opaque disc of radius $2.3\lambda$ at $z=14\lambda$. The transmitted field is calculated at that second boundary, then propagated downstream. On-axis flux immediately behind the disc is about 1.0% of the unobstructed value; at $28\lambda$ it recovers to about 73%. Fixed exposure makes the loss and recovery visible. The disc absorbs power; recovery redistributes the surviving field and does not restore the lost total power. Context: [self-healing of structured light](https://doi.org/10.1364/OE.25.019147).
+- **Linked phase rings** (`/#hopf`): two closed electric-component zero curves form a Hopf link. Independently counted oriented crossings give linking number $-1$. Each trace has a distinct colour, while the surrounding volume shows the calculated optical phase. Like the trefoil, this is a singularity annotation over a field, not a bright material wire or total-field null.
+- **Saturn in light** (`/#saturn`): a complex hologram optimized over 15 axial sections concentrates light around three spherical great circles and two tilted orbital rings. It is a diffraction-broadened approximation: the calculated field does not reproduce a perfectly isolated wire sculpture. Switchable dashed **Design curves** distinguish the intended geometry from the computed volume. **Emphasize reconstruction** applies a smooth display window around the reconstruction depth; it changes neither stored fields nor detector/probe values. Mean flux on the design curves is over twice that at copies translated by $\pm8\lambda$. Context: [shaping light along three-dimensional curves](https://doi.org/10.1364/OE.21.020544); this implementation uses multi-plane complex-amplitude optimization rather than that paper's curve integral.
+
+The knot and link thumbnails use their extracted curves; the metamorphosis thumbnail uses all three calculated image planes; the self-healing thumbnail uses a longitudinal field section. **Field detail** in Scene settings moves the camera close to the selected field structure. **Volume contrast** changes only the rendering transfer function. The full optical setup remains available through the framing button. The stationary knot traces are fine and translucent, while opaque markers identify detector intersections. Their marker opacity is independent of the zero field amplitude. The metamorphosis has three image-shaped focus buttons; scanning slows and dwells at the exact image depths. Optional contour guides show the design silhouette only near its respective plane, and do not alter the computed detector.
+
+Further focus and diffraction setups include:
+
+- **Autofocusing Airy ring** (`/#autofocus`): a finite radial Airy amplitude with alternating zero/pi phase. Its rings bend inward without an added focusing lens. The computed peak axial flux near $z=22\lambda$ is 17.55 times the maximum launch-plane flux. Fixed detector exposure is the default here, so that gain remains visible. The implementation integrates the Airy equation with cubic Hermite interpolation, checked against tabulated values and zeros. The binary-phase annuli use polar tessellation so their edges are circular rather than grid-shaped. Context: [Efremidis and Christodoulides, Abruptly autofocusing waves](https://opg.optica.org/ol/abstract.cfm?uri=ol-35-23-4045); [NIST Airy functions](https://dlmf.nist.gov/9.2).
+- **Fork grating vortices** (`/#fork`): actual opaque fork stripes combined with a focusing phase. The two first orders have measured phase winding $+1$ and $-1$, with a bright zero order between them. Its rendered opaque fork coating and continuous quadratic focusing profile implement the same amplitude and phase as the original wrapped transmission, up to one global phase. Context: [Stoyanov et al., fork-grating diffraction](https://quantum.phys.uni-sofia.bg/dreischuh/A70.pdf).
+- **Astigmatic focus** (`/#astigmatism`): unequal focusing phase in the two transverse directions. Vertical and horizontal line waists appear at different depths, with measured RMS widths $(0.611,1.627)\lambda$ at $z=18\lambda$ and $(2.250,1.147)\lambda$ at $z=34\lambda$. Nominal focal lengths do not equal the actual finite-beam waist positions. Context: [astigmatic Gaussian beam shaping](https://arxiv.org/abs/2506.22308).
+- **Poisson spot** (`/#poisson`): a solid disc blocks the middle of a finite Gaussian beam. A central bright spot appears in its shadow. The disc has real thickness and an opaque depth silhouette in the renderer; its thin support is schematic and excluded from the transmission calculation. The on-axis electric field agrees within 1.18% with an independently integrated, nonparaxial Rayleigh–Sommerfeld annulus at the three tested distances. Context: [disk diffraction and Babinet's principle](https://doi.org/10.1051/0004-6361/201937208).
+
+The detector has **Fixed** and **Adaptive** exposure. Fixed uses one reference peak over the complete propagation volume; adaptive interpolates the reference peak of the current plane. Neither changes the computed fields or probe values. Preview magnification is available in Light settings, or by scrolling over the preview; double-click restores the full window. Four corner marks on the 3D observation plane show exactly which area is enlarged. Pointer and keyboard probes use the enlarged coordinates. The focus experiments start with a useful magnification, and their thumbnails are cropped from the actual calculated field to make the structure legible. Even-density arrow grids retain an illuminated on-axis sample, so they cannot omit the centre of a focus.
+
+The existing catalogue also includes a sunflower sieve, helical interference, a star aperture, a quasiperiodic aperture and a fractal aperture. Other setups include crossing Gaussian beams, rotating petals, an axicon, a cubic caustic, five spatial foci, an optical vortex, a Fresnel zone plate, a Talbot lattice, six coherent holes, a double slit, a circular aperture and a flat rabbit image. Thumbnails use the earlier diagram style: a legible transmission preview beside the calculated detector pattern, with the actual mesh thumbnail for the bunny. `scripts/bake-previews.mjs` regenerates these directly from the experiment data. Rendered-apparatus captures remain available separately under `assets/previews/rendered/`; the optional `?thumbnail=<experiment-id>` capture route and `scripts/compose-rendered-previews.mjs` can be used for a rendering audit, but are not the default gallery style.
+
+The 3D bunny uses the Stanford scan: 35,947 vertices and 69,451 triangles. The full mesh sits in an illuminated recording arm beside the replay arm. A shared source feeds object and reference illumination; the object wave reaches a capture surface, which is connected through a processor to the replay plate. A separate laser and collimating lens illuminate that plate. The object-wave volume uses the spatially reflected, phase-conjugate counterpart of the computed replay field, so its mean energy retraces the same source-to-plate paths. The capture surface illustrates interference with the spherical reference from the drawn source position. Object illumination arrives from the sensor-facing side. A surface-depth texture crops the object-wave display at the actual sensor-facing bunny surface, so it does not continue behind the object. This crop affects display only. This is an idealized complex-field recording/conjugate-replay diagram, not a material-scattering calculation or a model of a particular camera acquisition algorithm. Area-weighted sampling gives 4,426 coherent surface sources at their actual 3D coordinates, spanning $18.6\lambda$ in depth around $z=32\lambda$. Gaussian source footprints of width $\sigma=0.40\lambda$ are distributed between $0.5\lambda$ depth layers. Each layer is back-propagated with the full angular-spectrum phase; their complex fields are added and normalized inside an $18\lambda$ radius pupil. The same vector propagator as every other setup then generates the electromagnetic fields. Fixed deterministic source phases retain coherent speckle. There is no flat target image pasted onto a detector.
+
+The translucent bunny at the reconstruction is a switchable **surface guide**, identified in settings and optionally by world labels. Its brightness is sampled from the computed field, with a thin contour marking its intersection with the detector plane. It is an annotation, not the volumetric field itself. Turning it off leaves the fields and detector unchanged. The source mesh defines coherent surface sources; its reflectance and response to the drawn illumination are not solved. Surface occlusion, reflection and opaque-object scattering are excluded. Finite numerical aperture and coherent cross terms mean the reconstructed field is not a perfectly isolated luminous surface. The scanner's automatic range crosses its surface depths; the manual slider retains the full propagation range.
+
+The sunflower sieve has 96 openings on a golden-angle spiral. Helical interference superposes finite $J_1$ vortex fields with opposite azimuthal charge and different longitudinal wave numbers; their bright lobes rotate with propagation. The star is a literal five-point polygonal opening. All three use the same vector propagation rather than animated geometric rays.
+
+Exact transmissions and dimensions are defined in `src/experiments.js`. The rabbit mask is computed by back-propagating a smooth analytic rabbit-shaped target amplitude, band-limiting it, multiplying by a finite pupil and normalizing its transmission. Its target is a union of soft ellipses with an eye cutout, defined explicitly in `src/image-hologram.js`. The mask is complex amplitude-and-phase transmission, not phase-only. The target-plane bandlimit is one below $q=0.42$, tapers by a raised cosine to zero at $q=0.50$, and the square pupil is one through a half-width of $10.8\lambda$, tapering to zero at $12\lambda$. The image plane is $z=24\lambda$. The visible rabbit is calculated from propagated electromagnetic fields; no target image is pasted onto the detector.
+
+Five foci encodes converging spherical waves aimed at five different depths. The caustic combines cubic and focusing phase on a finite Gaussian amplitude; it is not an infinite ideal Airy beam. The petal field superposes oppositely charged vortices with unequal absolute charges: its intensity pattern rotates with propagation distance, rather than with the monochromatic optical cycle. The quasiperiodic mask thresholds five oriented gratings; the fractal mask is a two-level Sierpinski carpet.
+
+The helicon, rotating-petal, caustic and vortex elements have an equivalent geometrical relief derived from their actual wrapped transmission phase: $h=(\arg T+\pi)/\pi$ wavelengths at index contrast $0.5$. This is one thin-element realization of the prescribed phase, with material scattering excluded. The constant phase offset is immaterial. Separate attenuation represents the amplitude factor, and an opaque pupil stop surrounds the transmitting area. Their information-view previews encode phase by hue and amplitude by brightness. The bunny, five-focus and flat-image holograms instead use thin patterned wavefront displays representing ideal complex-amplitude modulation; their phase is not rendered as a glass sculpture. These are idealized implementations, not claims about a unique manufactured device. Binary openings are holes in a mounted absorbing screen, with laser illumination arriving through an upstream collimator. The screen has a muted slate finish and modest display transparency. Element display opacity changes compositing only, never physical transmission or computed diffraction. The lens has a convex profile and its support ends below the clear opening. The axicon has a conical profile illustrating the equivalent thin-phase element at an index contrast of 0.5. Crossing beams use three angled launch heads connected to a shared source and splitter, without a fictitious plate. Source bodies, fibres, lenses and their upstream beam envelopes are schematic optical hardware; propagation inside these components is not solved.
+
+## Electromagnetic model
+
+Distances are measured in wavelengths, with $\lambda=532\,\mathrm{nm}$ in vacuum. The time convention is
+
+$$\mathbf E(\mathbf r,t)=\Re\{\widetilde{\mathbf E}(\mathbf r)e^{-i\omega t}\},\qquad \omega=ck.$$
+
+For the prescribed complex launch field $T(x,y)$, set $A=E_0 W\mathcal F\{T\}$. With $q_x=k_x/k$, $q_y=k_y/k$, and $q_z=\sqrt{1-q_x^2-q_y^2}$, each angular-spectrum mode has
+
+$$\widetilde{\mathbf E}_{\mathbf k}=A(0,1,-q_y/q_z),\qquad c\widetilde{\mathbf B}_{\mathbf k}=A(-(1-q_x^2)/q_z,q_xq_y/q_z,q_x).$$
+
+These satisfy both divergence constraints and the vacuum curl equations. Propagation uses the full $e^{ik_z z}$ phase, without a paraxial approximation. Fresnel and far-field behavior emerge from this same propagation. The tangential launch condition fixes $E_x=0$; the longitudinal electric field and all magnetic components are derived, not independently animated.
+
+The angular window is one through $q_\perp=0.50$, a raised cosine between $0.50$ and $0.62$, and zero above $0.62$. The fields add coherently before detection:
+
+$$\langle S_z\rangle=\frac{1}{2\mu_0}\Re(\widetilde{\mathbf E}\times\widetilde{\mathbf B}^{*})\cdot\hat{\mathbf z},\qquad I_0=\frac{\epsilon_0 c E_0^2}{2}.$$
+
+Because $E_x=0$,
+
+$$\langle S_z\rangle/I_0=-\Re[(\widetilde E_y/E_0)(c\widetilde B_x/E_0)^*].$$
+
+The detector is a virtual sampling plane and does not scatter or absorb the drawn field. In Energy mode its image displays nonnegative forward flux, normalized by either the fixed global reference peak or an interpolated per-plane reference peak, multiplied by display brightness and given a 0.43 power curve to reveal faint features. Electric field and Phase instead show the corresponding field observable on that plane; they are not images a conventional intensity detector directly records. Numerical probe values stay linear. The electric-field section defaults to the cycle RMS, $E_{y,\mathrm{rms}}=|\widetilde E_y|/\sqrt{2}$, so detector translation does not mix in optical-cycle flashing. Light settings can restore instantaneous sampling. The volume and arrows still show instantaneous fields in Electric field mode. The main plane is translucent; the inset shows the isolated pattern. Both use the same sampling and colour function.
+
+The self-healing setup adds a second prescribed absorbing boundary. It multiplies the propagated tangential electric component by the disc's transmission at $z=14\lambda$, reapplies the numerical-aperture window, derives the longitudinal and magnetic components again, and propagates that outgoing field. Vacuum equations and power conservation hold separately on each side. Reflection, induced currents and edge scattering inside the obstacle are not solved. Two distinct stored samples at the same axial coordinate retain the discontinuity without interpolating across it; CPU sampling, GPU sampling, preview decimation and the density cache share this piecewise indexing.
+
+The default energy view uses
+
+$$\langle u\rangle/u_0=(|\widetilde{\mathbf E}|^2+c^2|\widetilde{\mathbf B}|^2)/(2E_0^2),\qquad u_0=\epsilon_0E_0^2/2,$$
+
+with square-root weighting before the display mapping. The phase view uses either the relative or instantaneous argument of the electric component, with amplitude weighting. After gain and cutoff, volume strength remains linear at contrast one, with exponential opacity accumulation. At other contrast values, strength is raised to the selected exponent relative to a fixed field reference. Deep cyan and mint shade the energy field; amber appears only in stronger regions. The supplied reference renderer's palette and exposure of 1 are retained. Baseline cutoff 0.035 and density 0.55 are adjusted modestly per experiment for visual clarity. Its opacity coefficient converts to 0.9044 per wavelength here; a factor $28/\max(z_{\max},28)$ compensates visually for these longer propagation volumes. These controls affect rendering only. The outgoing volume fades softly at its finite storage boundaries; this fade never changes detector or probe values.
+
+For faster energy ray marching, a fourth half-float texture caches the scalar density and three local field-variation measures at the original spatial resolution. Interpolated density is corrected by $\frac12\sum_i f_i(1-f_i)G_i$, where $f_i$ is the interpolation fraction and $G_i$ averages squared complex-field differences to the two adjacent samples along axis $i$. This approximates the norm of the interpolated complex field more closely than interpolating scalar density alone. It is a display approximation, independently checked below. Detector flux and numerical probes still form their observables from the full interpolated complex fields. For a nonzero relative slit phase, volume energy uses the full coherent complex sum.
+
+Opaque optical hardware writes a depth prepass. The ray marcher then composites the mask, detector and optional reconstruction guide at their actual depths, including volume segments in front of and behind each surface. Vector glyphs also use the element and guide depth and opacity, so a nearer plate attenuates arrows behind it. This avoids transparent planes being drawn over nearer objects solely because of scene submission order. Setting element display opacity to zero removes the sheet and relief from compositing while retaining the physical mount.
+
+The relative slit phase uses exact coherent linearity: $F(\delta)=F(0)+(e^{i\delta}-1)F_R$, applied to every complex electric and magnetic component. The full right-opening field is precomputed separately. One phase uniform updates the volume, glyphs and both detectors; no propagation job is queued. Probe values apply the same superposition. Detector normalization uses the in-phase reference peak at each distance, so phase changes are not hidden by renormalizing each image.
+
+The incoming field is an analytic plane wave, $\mathbf E/E_0=\hat{\mathbf y}\cos(kz-\omega t)$ and $c\mathbf B/E_0=-\hat{\mathbf x}\cos(kz-\omega t)$, visually cropped to the plate. Its join to the prescribed outgoing field is schematic. This is a band-limited prescribed-field model, not a material boundary-value solution: reflected and evanescent fields, aperture thickness, edge charges and material scattering are excluded. Individual outgoing modes satisfy Maxwell's equations; finite storage and interpolation introduce numerical error in displayed samples.
+
+## Numerical resolution and performance
+
+- Boundary fields use a $512^2$ FFT over $128\lambda\times128\lambda$, with $4^2$ area samples per launch pixel.
+- Full volumes store all five nonzero complex components at transverse spacing $0.25\lambda$, aligned exactly with the propagation grid to avoid an extra interpolation. Transverse grids range from $113^2$ to $233^2$ samples; axial spacing is $0.5\lambda$, with experiment-specific travel of $42$–$96\lambda$.
+- The common $e^{ikz}$ carrier is removed before binary16 storage and trilinear interpolation, then restored analytically. The implementation interpolates complex fields and forms flux afterward, preserving interference.
+- Three half-float 3D textures retain the complex fields; a fourth accelerates the energy display at the same resolution. A detector input changes shader uniforms and the plane position, with no queued Fourier calculation.
+- An aligned half-resolution preview ($\Delta x=\Delta y=0.5\lambda$, $\Delta z=1\lambda$) appears first, then crossfades to full resolution over 650 ms. Only neighbouring previews are prefetched; six previews and three full volumes are retained. A cached full volume opens directly without returning to preview quality. Decompression, density preparation, vector bounds and bunny surface sampling run in a worker. Full textures upload in small groups of depth layers between frames. Manual dragging briefly defers refinement; automatic scanning does not. Field resolution is never automatically reduced to improve frame rate. The complete high-resolution asset set is approximately 1,824 MiB compressed, including the auxiliary right-slit volume; only selected full volumes are loaded.
+- Preset changes crossfade a captured rendered frame while easing the camera. Dragging avoids repeated layout reads, and unchanged LaTeX is not rendered again. Information equations render when the information dialog opens.
+- Playback defaults to one optical cycle (about $1.775\,\mathrm{fs}$) per five seconds. This is a continuous-wave steady state. A source turning on requires a broadband, time-dependent calculation; the app does not fake that by progressively revealing an already-computed field. No particle motion is implied by the arrows.
+
+To regenerate numerical data and thumbnails after changing an experiment:
+
+```powershell
+node scripts/prepare-bunny.mjs
+node scripts/bake-fields.mjs
+node scripts/bake-vortex-lines.mjs
+node scripts/bake-elements.mjs
+node scripts/bake-previews.mjs
+```
+
+Existing full volumes can supply fresh aligned previews with `node scripts/refine-previews.mjs`. The element baker derives the relief meshes from the prescribed transmissions.
+
+The preparation command derives the binary mesh and coherent source sample from the original PLY. The field baker accepts experiment IDs to rebuild a subset. The preview baker updates transmission masks, calculated detector patterns and neutral phase surfaces, then generates the diagram thumbnails. These calculations stay out of setup-switch interactions.
+
+## Validation
+
+Thirty-nine tests check FFT normalization, modal and finite-difference Maxwell equations, independent propagation, conservation of integrated power, coherent interference and extinction, analytic far-field minima, three-dimensional longitudinal components, storage precision, continuous interpolation, focusing, vortex charge and nulls, padding convergence, all five holographic targets, petal rotation, the rendered vector coordinate mapping, coherent right-slit phase mixing, shared vector normalization, on-axis glyph coverage, rabbit image formation, tabulated Airy and Bessel values, helicon rotation, actual bunny depth dependence and concentration at its surface, and the optical-path phase of every shipped relief mesh. The rabbit target/flux correlation is 0.933 at the image plane, versus 0.724 and 0.741 at the ends of the volume.
+
+The complete 27-setup audit finds full-domain axial-power drift below $8\times10^{-13}$ and finite-difference Maxwell residuals below $0.001\%$ at the tested points. Those checks apply to the band-limited prescribed field, not to unsimulated material interfaces. The Poisson reference integrates the real-space Rayleigh–Sommerfeld kernel directly, independently of the FFT and modal basis. The nine added experiments also converge under doubled computational padding. `scripts/audit-new-fields.mjs` records axial intensity and transverse widths through the new volumes in `artifacts/physics-audit/new-fields.json`.
+
+The earlier browser audit covers 22 experiments at near, selected and far distances, including uploaded GPU samples, rendered equations and camera invariance during detector movement. Screenshots and machine-readable diagnostics are in `artifacts/full-audit/`. During this Energy-view sweep at a 1280×720 CSS viewport, sampled detector input-to-render-submission latency stayed below 26 ms, GPU render time below 9 ms, and all 66 slider checks kept the camera unchanged. These are local observations, not device-independent performance guarantees. GPU/CPU sampling RMS differences stayed below 0.12% for complex fields and 0.18% for the density cache.
+
+For the shipped volumes, comparison at 243 off-grid points per experiment across three distances gives complex-field RMS differences of 0.02–1.38%, axial-flux RMS differences of 0.03–2.11%, and cached-density RMS differences of 0.05–2.75% relative to direct propagation. These are sampled comparisons, not bounds at every point; relative errors near zeros can be larger. The maximum-distance double-slit detector differs from a twice-padded domain by 0.0107% of peak on the tested grid.
+
+Flattening the bunny's surface depths changes its complex hologram (correlation 0.521). Mean calculated axial flux at the original surface is 0.256, versus 0.193 and 0.142 at copies translated by −14 and +14 wavelengths. These are reconstruction checks, not a claim of a speckle-free surface image. The finite helicon rotates −48.68° over 8 wavelengths, versus −47.78° for the ideal two-cone prediction.
+
+DOM diagnostics on `#app` expose first-field time, recent frame time and input-to-render-submission latency. These are not display-scanout measurements. When supported, a GPU timer query reports rendering time separately. Browser performance depends on the GPU and viewport. Opening `?verify=1` additionally reads 120 uploaded complex-field components and 12 density samples back from the GPU, comparing them with CPU interpolation; normal viewing does not perform this readback. Near/far interaction screenshots and per-preset diagnostics are in `artifacts/interaction-audit/`; earlier numerical comparisons remain in `artifacts/setup-audit/`.
+
+The creative-field audit adds numerical checks for the extracted trefoil and Hopf topology, concentration around the three-dimensional Saturn curves, image specificity at three depths, and core recovery after an intermediate absorber. The final three image/target intensity correlations are 0.926, 0.919 and 0.838; each is at least 0.25 higher than that target's correlation at the other two planes. Extracted nodal traces have component-amplitude RMS residuals below 0.05% of the volume reference amplitude. These tests use the shipped volume files, rather than just the design targets.
+
+The subsequent browser sweep covers all **27 experiments**, with screenshots under `artifacts/creative-lab/browser/`. All 54 near/far detector checks kept the camera fixed. At a 1280×720 CSS viewport the sampled input-to-render-submission latency was at most 15.2 ms and GPU time at most 10.75 ms; GPU/CPU RMS differences were below 0.12% for complex fields and 0.18% for cached density. New information views were checked for KaTeX errors; phone (390×844) and tablet (768×1024) layouts were inspected. The final metamorphosis refinement was re-baked, visually inspected and included in a passing full 38-test rerun. Local timings are observations, not guarantees for other devices.
+
+The presentation refinement has a passing **39-test** run in `artifacts/refinement/tests.log`, including the continuous fork profile's phase equivalence. All 27 setups were rendered and visually inspected with the new defaults; screenshots and sampled settings are in `artifacts/refinement/`. The exact three metamorphosis planes, first/last catalogue borders, phone (390×844), tablet (768×1024), and landscape (844×390) controls were also checked. The largest sampled GPU time in this sweep was 11.66 ms. Singularity annotations remain visible at zero amplitude; they do not alter the simulated field. No material scattering model or new field propagation approximation was introduced by these presentation changes.
+
+## Source layout
+
+| File | Purpose |
+| --- | --- |
+| `src/experiments.js` | Curated complex launch fields and angular spectra |
+| `src/physics.js` | FFT and vector propagation core; retained reference fixtures |
+| `src/volume-data.js` | Binary16 storage, loading and CPU trilinear sampling |
+| `src/field-loader.worker.js` | Background decompression and display-data preparation |
+| `src/energy-volume.js` | Scalar-density cache with interpolation correction |
+| `src/gpu-validation.js` | Opt-in texture-upload and GPU-sampling validation |
+| `src/render-shaders.js` | Volumetric fields, instantaneous vectors and detector flux |
+| `src/scene3d.js` | Camera, GPU rendering and detector interaction |
+| `src/optical-element.js` | Mounted apertures and phase elements |
+| `src/setup-hardware.js` | Source, collimator and shared-beam hardware |
+| `src/transmission.js` | Shared amplitude and phase encoding for mask textures |
+| `src/settings.js` | Session-only grouped controls and large pointer targets |
+| `src/display-presets.js` | Curated presentation defaults per setup |
+| `src/themes.js` | Temporary background, lighting and palette trials |
+| `src/presentation.css` | Glass settings panel, compact information and theme styling |
+| `src/vector-samples.js` | Adaptive fixed anchors and physical-to-scene vector rotation |
+| `src/bunny-hologram.js` | Layer-based CGH from the actual 3D surface |
+| `src/bunny-model.js` | Source mesh and optional reconstruction guide |
+| `src/bunny-recording.js` | Idealized object/reference recording arm and reciprocal field |
+| `src/object-wave-window.js` | Display boundary at the sensor-facing object surface |
+| `src/label-layout.js` | Component names and collision avoidance |
+| `src/element-relief.js` | Transmission phase to physical relief geometry |
+| `src/structured-fields.js` | Bessel, sunflower and star transmissions |
+| `src/advanced-fields.js` | Airy ring, fork grating, astigmatic focus and Poisson-disc transmissions |
+| `src/creative-fields.js` | Knotted and linked LG fields, finite Bessel launch and angular transfer |
+| `src/holographic-scenes.js` | Three-image and 3D curve hologram optimization |
+| `src/vortex-lines.js` | Simultaneous real/imaginary zero extraction through tetrahedra |
+| `src/topology-view.js` | Computed singularity traces, section crossings and optional design guides |
+| `src/workspace.css` | Floating desktop and narrow-screen instruments |
+| `scripts/prepare-bunny.mjs` | Reproducible mesh and coherent surface sampling |
+| `src/image-hologram.js` | Explicit target image and computed complex hologram |
+| `src/app.js` | Minimal UI, field cache, LaTeX and probe values |
+| `scripts/bake-fields.mjs` | Reproducible offline field calculation |
+| `scripts/bake-vortex-lines.mjs` | Extract and verify the closed nodal curves from propagated fields |
+| `scripts/bake-previews.mjs` | Scientific experiment previews |
+| `tests/volumes.test.mjs` | Validation of the actual shipped 3D data |
+| `tests/creative-fields.test.mjs` | Topology, distinct depth images, 3D target concentration and self-healing |
+
+The propagation follows the [angular-spectrum method](https://phys.libretexts.org/Bookshelves/Optics/BSc_Optics_(Konijnenberg_Adam_and_Urbach)/06%3A_Scalar_diffraction_optics/6.04%3A_Angular_Spectrum_Method). Experiment context: [three-dimensional holography](https://www.physics.nyu.edu/grierlab/publication/curtis02/) and [rotating optical petals](https://pure.strath.ac.uk/ws/portalfiles/portal/6008098/OpExFerrisWheel.pdf). Three.js and KaTeX are MIT licensed; their licenses are in `vendor/`. Runtime scripts, mathematical fonts and field data are served locally.
+
+
+The bunny scan is credited to the [Stanford University Computer Graphics Laboratory](https://graphics.stanford.edu/data/3Dscanrep/), obtained through [Open3D's BunnyMesh distribution](https://www.open3d.org/docs/release/python_api/open3d.data.BunnyMesh.html). Its redistribution terms are recorded in `assets/models/NOTICE.txt`. Additional context: [Helicon waves](https://www.sciencedirect.com/science/article/pii/0030401895006362), [Vogel aperture diffraction](https://opg.optica.org/ol/abstract.cfm?uri=ol-43-24-5969), and [point/layer computer-generated holography methods](https://trepo.tuni.fi/bitstream/handle/10024/216848/ACM_CSUR_Sahin_revised_submitted.pdf?isAllowed=y&sequence=1).
+
+Recording/replay context: [TU Delft, holography](https://qiweb.tudelft.nl/aoi/holography/holography/). The displayed source-arm energy is reciprocal to the calculated replay field; the illumination hardware and reference-beam envelopes are schematic.

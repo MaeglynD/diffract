@@ -1,0 +1,13 @@
+// Opt-in browser verification of the actual uploaded textures and GPU interpolation.
+// Enable with ?verify=1; not run during normal viewing.
+import * as THREE from 'three';
+import {sampleField} from './volume-data.js';
+import {sampleEnergy} from './energy-volume.js';
+export function verifyGpuVolume(renderer,volume,textures){
+ const target=new THREE.WebGLRenderTarget(11,12,{depthBuffer:false}),scene=new THREE.Scene(),camera=new THREE.Camera();
+ const material=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,uniforms:{cutFraction:{value:(volume.interfaceZ||0)/volume.zMax},e:{value:textures[0]},b:{value:textures[1]},z:{value:textures[2]},energy:{value:textures[3]},dim:{value:new THREE.Vector3(volume.nx,volume.ny,volume.nz)}},vertexShader:'void main(){gl_Position=vec4(position,1.);}',fragmentShader:`precision highp float;precision highp sampler3D;uniform sampler3D e,b,z,energy;uniform vec3 dim;uniform float cutFraction;out vec4 outColor;void main(){int c=int(gl_FragCoord.x),j=int(gl_FragCoord.y);vec3 p=vec3(.13+.23*float(j%4),.17+.31*float(j%3),.12+.067*float(j));vec3 index=p*(dim-1.);if(cutFraction>0.)index.z=p.z*(dim.z-2.)+step(cutFraction,p.z);vec3 uv=(index+.5)/dim;vec4 v=c<4?texture(e,uv):c<8?texture(b,uv):texture(z,uv);float value=v[c%4];if(c==10){vec4 u=texture(energy,uv);vec3 f=fract(index);value=max(0.,u.r-.5*dot(f*(1.-f),u.gba));}uint bits=floatBitsToUint(value);outColor=vec4(float(bits&255u),float((bits>>8)&255u),float((bits>>16)&255u),float((bits>>24)&255u))/255.;}`,depthTest:false,depthWrite:false});
+ const mesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),material);scene.add(mesh);const previous=renderer.getRenderTarget();renderer.setRenderTarget(target);renderer.setScissorTest(false);renderer.clear();renderer.render(scene,camera);const pixels=new Uint8Array(11*12*4);renderer.readRenderTargetPixels(target,0,0,11,12,pixels);renderer.setRenderTarget(previous);
+ const view=new DataView(pixels.buffer);let err=0,norm=0,maximum=0,energyError=0,energyNorm=0;
+ for(let j=0;j<12;j++){const p=[.13+.23*(j%4),.17+.31*(j%3),.12+.067*j],x=(p[0]*2-1)*volume.half,y=(p[1]*2-1)*volume.half,z=p[2]*volume.zMax,f=sampleField(volume,x,y,z);for(let c=0;c<10;c++){const delta=view.getFloat32((j*11+c)*4,true)-f[c];err+=delta*delta;norm+=f[c]*f[c];maximum=Math.max(maximum,Math.abs(delta));}const reference=sampleEnergy(volume,volume.energy,x,y,z),delta=view.getFloat32((j*11+10)*4,true)-reference;energyError+=delta*delta;energyNorm+=reference*reference;}
+ mesh.geometry.dispose();material.dispose();target.dispose();return{relativeRms:Math.sqrt(err/Math.max(norm,1e-20)),maximum,samples:120,energyRelativeRms:Math.sqrt(energyError/Math.max(energyNorm,1e-20)),energySamples:12};
+}
