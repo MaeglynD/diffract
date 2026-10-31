@@ -62,10 +62,11 @@ export class StudioTable {
       fragmentShader:`varying float height;void main(){gl_FragColor=vec4(vec3(exp(-height)),1.);}`
     });
     this.surface=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.ShaderMaterial({
-      uniforms:{contact:{value:this.map.texture},strength:{value:0}},
+      uniforms:{contact:{value:this.map.texture},strength:{value:0},
+        floorShade:{value:new THREE.Color(.086,.101,.118)},floorLight:{value:new THREE.Color(.23,.258,.282)}},
       transparent:true,depthWrite:false,
       vertexShader:`varying vec2 p;void main(){p=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader:`uniform sampler2D contact;uniform float strength;varying vec2 p;
+      fragmentShader:`uniform sampler2D contact;uniform float strength;uniform vec3 floorShade,floorLight;varying vec2 p;
         void main(){
           vec2 uv=vec2(p.x,1.-p.y);
           vec2 offset=(uv-.5)*2.;
@@ -74,7 +75,7 @@ export class StudioTable {
                        .34*textureLod(contact,uv,3.4).r+
                        .16*textureLod(contact,uv,4.9).r;
           float wash=exp(-3.4*dot(offset+vec2(.23,-.20),offset+vec2(.23,-.20)));
-          vec3 slate=mix(vec3(.086,.101,.118),vec3(.23,.258,.282),wash);
+          vec3 slate=mix(floorShade,floorLight,wash);
           gl_FragColor=vec4(slate*(1.-.82*shadow),fade*strength*.88);
         }`
     }));

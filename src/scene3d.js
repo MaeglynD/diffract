@@ -34,7 +34,8 @@ function texture3D(data,nx=1,ny=1,nz=1){const t=new THREE.Data3DTexture(data,nx,
 export class FieldScene{
  constructor(container,onDistance,onProbe){
   this.container=container;this.onDistance=onDistance;this.onProbe=onProbe;this.mode='both';this.z=29;this.half=17;this.zMax=56;this.options={...DEFAULT_APPEARANCE};
-  this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x071119);this.camera=new THREE.PerspectiveCamera(36,1,.1,2000);
+  this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x10151b);this.camera=new THREE.PerspectiveCamera(36,1,.1,2000);
+  this.catalogShade=document.querySelector('.top-shade');
   this.renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});this.renderer.setClearColor(0x071119,1);this.renderer.setPixelRatio(document.body.classList.contains('thumbnail-export')?.5:Math.min(devicePixelRatio||1,1.5));this.renderer.autoClear=false;this.gpuTimer=this.renderer.getContext().getExtension('EXT_disjoint_timer_query_webgl2');this.renderer.outputColorSpace=THREE.SRGBColorSpace;container.appendChild(this.renderer.domElement);
   this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=.85;
   this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.controls.enableDamping=true;this.controls.dampingFactor=.09;this.controls.minDistance=5;this.controls.maxDistance=900;this.controls.screenSpacePanning=true;
@@ -42,7 +43,7 @@ export class FieldScene{
   this.illumination=new THREE.Group();this.scene.add(this.illumination);this.models=new THREE.Group();this.scene.add(this.models);const fill=new THREE.HemisphereLight(0xc8e9ff,0x172431,2.2);this.scene.add(fill);const key=new THREE.DirectionalLight(0xffead9,3.3);key.position.set(-30,45,35);this.scene.add(key);const rim=new THREE.DirectionalLight(0x71c8ff,2.2);rim.position.set(35,12,-32);this.scene.add(rim);this.lightRig={fill,key,rim};this.studioUniforms={...coatingUniforms(),studioTint:{value:new THREE.Color(1,1,1)},studioFill:{value:1},studioDirection:{value:new THREE.Vector3(-.4,.8,1).normalize()}};
   this.emptyTexture=texture3D(new Uint16Array(4));
   this.uniforms={energyMap:{value:this.emptyTexture},electricMap:{value:this.emptyTexture},magneticMap:{value:this.emptyTexture},extraMap:{value:this.emptyTexture},dimensions:{value:new THREE.Vector3(1,1,1)},halfWidth:{value:17},zMax:{value:56},incidentLength:{value:10},plateHalf:{value:10},timePhase:{value:0},opacity:{value:.65},threshold:{value:.035},exposure:{value:1.1},steps:{value:512},fieldMode:{value:0},displayMode:{value:0},phaseReference:{value:0},planeSampling:{value:0},positiveColor:{value:shaderColor(PALETTES.cyan[0])},negativeColor:{value:shaderColor(PALETTES.cyan[1])},lowColor:{value:shaderColor(PALETTES.cyan[4])},midColor:{value:shaderColor(PALETTES.cyan[5])},highColor:{value:shaderColor(PALETTES.cyan[6])},reveal:{value:1}};
-  Object.assign(this.uniforms,{linearMix:{value:false},auxiliaryMix:{value:0},phaseHue:{value:0},rightElectric:{value:this.emptyTexture},rightMagnetic:{value:this.emptyTexture},rightExtra:{value:this.emptyTexture},rightDimensions:{value:new THREE.Vector3(1,1,1)},slitPhase:{value:0},interferenceEnabled:{value:false}});
+  Object.assign(this.uniforms,{daylightMix:{value:0},linearMix:{value:false},auxiliaryMix:{value:0},phaseHue:{value:0},rightElectric:{value:this.emptyTexture},rightMagnetic:{value:this.emptyTexture},rightExtra:{value:this.emptyTexture},rightDimensions:{value:new THREE.Vector3(1,1,1)},slitPhase:{value:0},interferenceEnabled:{value:false}});
   Object.assign(this.uniforms,{nodalCount:{value:0},nodalPoints:{value:Array.from({length:12},()=>new THREE.Vector2())}});
   Object.assign(this.uniforms,{viewHeight:{value:17},densityDetector:{value:false},nativeField:{value:false},fineSampling:{value:false},focusWindow:{value:new THREE.Vector2(-1,-1)},interfaceZ:{value:0},volumeContrast:{value:1},fieldReference:{value:1}});
   Object.assign(this.uniforms,{liveField:{value:false},liveElectric:{value:new THREE.Texture()},liveMagnetic:{value:new THREE.Texture()},liveExtra:{value:new THREE.Texture()},detectorExtent:{value:new THREE.Vector2(17,17)}});
@@ -56,7 +57,7 @@ export class FieldScene{
   this.depthTarget=new THREE.WebGLRenderTarget(1,1,{depthTexture:new THREE.DepthTexture(1,1)});this.depthTarget.texture.generateMipmaps=false;
   this.guideTarget=new THREE.WebGLRenderTarget(1,1,{depthTexture:new THREE.DepthTexture(1,1)});this.guideTarget.texture.generateMipmaps=false;
   Object.assign(this.uniforms,{elementDepth:{value:this.elementTarget.depthTexture},elementColor:{value:this.elementTarget.texture},clipObject:{value:false},objectFront:{value:new THREE.Texture()},fieldOrigin:{value:new THREE.Vector3()},fieldSign:{value:new THREE.Vector3(1,1,1)},travelMax:{value:56},sceneDepth:{value:this.depthTarget.depthTexture},guideDepth:{value:this.guideTarget.depthTexture},guideColor:{value:this.guideTarget.texture}});
-  for(const arrows of[this.eArrows,this.bArrows])for(const key of['linearMix','auxiliaryMix','elementDepth','elementColor','guideDepth','guideColor','viewportSize','viewportOrigin','showMask','showGuide'])arrows.material.uniforms[key]=this.uniforms[key];
+  for(const arrows of[this.eArrows,this.bArrows])for(const key of['daylightMix','linearMix','auxiliaryMix','elementDepth','elementColor','guideDepth','guideColor','viewportSize','viewportOrigin','showMask','showGuide'])arrows.material.uniforms[key]=this.uniforms[key];
   this.detectorMaterial=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:detectorVertex,fragmentShader:detectorFragment,uniforms:this.detectorUniforms,side:THREE.DoubleSide,transparent:true,depthWrite:false,depthTest:true});
   this.detector=new THREE.Group();this.screen=new THREE.Mesh(new THREE.PlaneGeometry(1,1),this.detectorMaterial);this.screen.rotation.y=Math.PI/2;this.screen.visible=false;this.screen.renderOrder=3;this.detector.add(this.screen);this.frame=new THREE.Group();this.frame.layers.set(2);this.detector.add(this.frame);this.scene.add(this.detector);
   this.previewScene=new THREE.Scene();this.previewCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,2);this.previewCamera.position.z=1;this.previewMaterial=this.detectorMaterial.clone();this.previewMaterial.uniforms={...this.detectorUniforms,isPreview:{value:true}};this.previewMaterial.transparent=true;this.previewScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.previewMaterial));
@@ -91,13 +92,29 @@ export class FieldScene{
    this.lightRig.key.castShadow=true;
   }
   const {fill,key,rim}=this.lightRig;
-  this.themeTransition={start:animate?performance.now():-1000,theme,studio:this.studioUniforms.studioMix.value,background:this.scene.background.clone(),sky:fill.color.clone(),ground:fill.groundColor.clone(),fill:fill.intensity,key:key.color.clone(),keyPower:key.intensity,keyPosition:key.position.clone(),rim:rim.color.clone(),rimPower:rim.intensity,rimPosition:rim.position.clone(),exposure:this.renderer.toneMappingExposure,tint:this.studioUniforms.studioTint.value.clone(),opticFill:this.studioUniforms.studioFill.value};
-  this.themeTransition.target={background:new THREE.Color(theme.background),sky:new THREE.Color(theme.sky),ground:new THREE.Color(theme.ground),key:new THREE.Color(theme.key),rim:new THREE.Color(theme.rim),tint:shaderColor(theme.opticTint),keyPosition:new THREE.Vector3(...theme.keyPosition),rimPosition:new THREE.Vector3(...theme.rimPosition)};this.updateTheme(performance.now());
+  const floor=this.studioTable?.surface.material.uniforms;
+  this.themeTransition={start:animate?performance.now():-1000,theme,daylight:this.uniforms.daylightMix.value,studio:this.studioUniforms.studioMix.value,background:this.scene.background.clone(),sky:fill.color.clone(),ground:fill.groundColor.clone(),fill:fill.intensity,key:key.color.clone(),keyPower:key.intensity,keyPosition:key.position.clone(),rim:rim.color.clone(),rimPower:rim.intensity,rimPosition:rim.position.clone(),exposure:this.renderer.toneMappingExposure,tint:this.studioUniforms.studioTint.value.clone(),opticFill:this.studioUniforms.studioFill.value};
+  this.themeTransition.target={background:new THREE.Color(theme.background),sky:new THREE.Color(theme.sky),ground:new THREE.Color(theme.ground),key:new THREE.Color(theme.key),rim:new THREE.Color(theme.rim),tint:shaderColor(theme.opticTint),keyPosition:new THREE.Vector3(...theme.keyPosition),rimPosition:new THREE.Vector3(...theme.rimPosition)};
+  if(theme.floor && floor){
+   this.themeTransition.floor={
+    shade:floor.floorShade.value.clone(),lit:floor.floorLight.value.clone(),
+    targetShade:shaderColor(theme.floor[0]),targetLit:shaderColor(theme.floor[1])
+   };
+  }
+  this.updateTheme(performance.now());
  }
  updateTheme(now){
   const t=this.themeTransition;if(!t)return;const p=Math.min(1,(now-t.start)/440),f=p*p*(3-2*p),a=t.theme,b=t.target,{fill,key,rim}=this.lightRig,mix=(x,y)=>x+(y-x)*f;
   this.scene.background.copy(t.background).lerp(b.background,f);fill.color.copy(t.sky).lerp(b.sky,f);fill.groundColor.copy(t.ground).lerp(b.ground,f);fill.intensity=mix(t.fill,a.fill);
+  if(p<1) this.catalogShade.style.setProperty('--scene-bg','#'+this.scene.background.getHexString());
+  else this.catalogShade.style.removeProperty('--scene-bg');
   key.color.copy(t.key).lerp(b.key,f);key.intensity=mix(t.keyPower,a.keyPower);key.position.copy(t.keyPosition).lerp(b.keyPosition,f);rim.color.copy(t.rim).lerp(b.rim,f);rim.intensity=mix(t.rimPower,a.rimPower);rim.position.copy(t.rimPosition).lerp(b.rimPosition,f);
+  if(t.floor){
+   const floor=this.studioTable.surface.material.uniforms;
+   floor.floorShade.value.copy(t.floor.shade).lerp(t.floor.targetShade,f);
+   floor.floorLight.value.copy(t.floor.lit).lerp(t.floor.targetLit,f);
+  }
+  this.uniforms.daylightMix.value=mix(t.daylight,a.light ? 1 : 0);
   const studio=mix(t.studio,a.studio);
   this.studioUniforms.studioMix.value=studio;
   this.scene.environmentIntensity=studio*4.2;
@@ -205,7 +222,8 @@ export class FieldScene{
  setSlitPhase(phase){this.uniforms.slitPhase.value=phase;this.eArrows.material.uniforms.slitPhase.value=this.bArrows.material.uniforms.slitPhase.value=phase;document.getElementById('app').dataset.slitPhase=String(phase);}
  setMode(mode){if(this.live&&this.mode!==mode)this.liveVectorsDirty=true;this.mode=mode;this.eArrows.visible=mode==='electric'||mode==='both';this.bArrows.visible=mode==='magnetic'||mode==='both';this.uniforms.fieldMode.value=0;}
  buildTrack(){
-  dispose(this.track);this.track.clear();const y=-this.viewHeight-1.2,start=-this.incidentLength;
+  dispose(this.track);this.track.clear();const y=0,start=-this.incidentLength;
+  this.track.position.y=-this.viewHeight-1.2;
   for(let x=-this.half;x<=this.half;x+=5)this.track.add(line([[start,y,x],[this.zMax,y,x]],0x536e7b,.065));
   for(let z=start;z<=this.zMax;z+=5)this.track.add(line([[z,y,-this.half],[z,y,this.half]],0x536e7b,.065));
   this.track.add(line([[start,y,0],[this.zMax,y,0]],0x8ba5ad,.24));
@@ -332,6 +350,12 @@ export class FieldScene{
  transitionAppearance(options){if(!this.volume){this.applyAppearance(options);return;}this.pendingAppearance={...options};}
  render(phase,now){
   const renderStarted=performance.now();
+  const renderer=this.renderer,gl=renderer.getContext(),timer=this.gpuTimer;
+  if(timer&&this.gpuQuery&&gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT_AVAILABLE)){
+   if(!gl.getParameter(timer.GPU_DISJOINT_EXT)){const ms=gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT)/1e6;this.gpuFrameMs=this.gpuFrameMs?this.gpuFrameMs*.8+ms*.2:ms;document.getElementById('app').dataset.gpuMs=ms.toFixed(2);}
+   gl.deleteQuery(this.gpuQuery);this.gpuQuery=null;
+  }
+  const measure=timer&&!this.gpuQuery;if(measure){this.gpuQuery=gl.createQuery();gl.beginQuery(timer.TIME_ELAPSED_EXT,this.gpuQuery);}
   this.updateTheme(now);
   if(this.live){this.live.update(this.renderer,this.liveParameter);this.optic.userData.setParameter?.(this.liveParameter);if(this.liveVectorsDirty&&this.options.vectors!=='none'){this.prepareVectorSamples();this.updateArrows();this.liveVectorsDirty=false;}}
 
@@ -342,6 +366,8 @@ export class FieldScene{
     table.setup=this.setupVersion;
     table.incident=this.options.incident;
    }
+   const gridHeight=-this.viewHeight-1.2;
+   this.track.position.y=table.hasSupport?THREE.MathUtils.lerp(gridHeight,table.surface.position.y+.012,studioStrength):gridHeight;
    table.renderContact(this.renderer,this.scene,studioStrength,this.optic.userData.handle?this.liveParameter:null,this.lightRig.key);
   }
   if(this.cameraTween){const t=this.cameraTween,f=Math.min(1,(now-t.start)/380),s=1-(1-f)**3;this.camera.position.lerpVectors(t.from,t.to,s);this.controls.target.lerpVectors(t.fromTarget,t.target,s);if(f===1)this.cameraTween=null;}
@@ -354,12 +380,7 @@ export class FieldScene{
   const imageGuide=this.experiment?.id==='metamorphosis'?(this.topology.userData.imageGuides||[]).find(g=>Math.abs(g.z-this.z)<3):null;const designLabel=document.getElementById('design-label'),designText=imageGuide?imageGuide.name+' · guide':'Design curves';if(designLabel.textContent!==designText)designLabel.textContent=designText;this.positionLabel('design-label',[imageGuide?.z||40,10,0],!!(this.options.labels&&this.options.surfaceGuide&&(this.experiment?.id==='saturn'||imageGuide)));
   this.positionLabel('obstacle-label',[this.experiment?.interfaceZ||0,5,0],!!(this.options.labels&&this.experiment?.interfaceZ));
   layoutLabels(this.labelItems,this.width,this.height,this.previewRect);
-  const renderer=this.renderer,gl=renderer.getContext(),timer=this.gpuTimer;
-  if(timer&&this.gpuQuery&&gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT_AVAILABLE)){
-   if(!gl.getParameter(timer.GPU_DISJOINT_EXT)){const ms=gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT)/1e6;this.gpuFrameMs=this.gpuFrameMs?this.gpuFrameMs*.8+ms*.2:ms;document.getElementById('app').dataset.gpuMs=ms.toFixed(2);}
-   gl.deleteQuery(this.gpuQuery);this.gpuQuery=null;
-  }
-  const measure=timer&&!this.gpuQuery;if(measure){this.gpuQuery=gl.createQuery();gl.beginQuery(timer.TIME_ELAPSED_EXT,this.gpuQuery);}const bg=this.scene.background;renderer.setScissorTest(false);this.scene.background=null;
+  const bg=this.scene.background;renderer.setScissorTest(false);this.scene.background=null;
   // Mesh depth prepass: the ray integral stops at the first solid surface.
   this.camera.layers.set(4);renderer.setRenderTarget(this.depthTarget);renderer.setClearColor(0,0);renderer.clear();renderer.render(this.scene,this.camera);
   this.camera.layers.set(5);renderer.setRenderTarget(this.elementTarget);renderer.clear();renderer.render(this.scene,this.camera);

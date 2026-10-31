@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
- <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#09131b">
+ <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#10151b">
  <title>diffract · Electromagnetic diffraction</title>
  <meta name="description" content="Explore electromagnetic fields throughout three-dimensional optical experiments.">
  <meta name="application-name" content="diffract">
@@ -66,6 +66,7 @@
      <div class="setting"><div class="cycle-heading"><label id="phase-value" for="phase"></label><button id="play" class="icon" aria-label="Play optical cycle" title="Play optical cycle"><svg viewBox="0 0 20 20"><path id="play-path" d="M6 3l10 7-10 7z"/></svg></button></div><input id="phase" type="range" min="0" max="1000" value="0" aria-label="Optical cycle phase"></div>
     </section>
     <section id="scene-settings" role="tabpanel" aria-labelledby="scene-tab" hidden>
+     <div class="setting"><span class="setting-label" id="lighting-label">Lighting</span><div class="lighting-choices" role="group" aria-labelledby="lighting-label"></div></div>
      <div class="setting" id="inspection-setting" hidden><label for="inspection-distance">Observation position</label><input id="inspection-distance" type="range" min="0.5" max="48" step="0.05" aria-label="Observation position"></div>
      <label id="vortex-setting" class="switch" hidden><span>Trace phase singularities</span><input data-setting="vortexLines" type="checkbox" aria-label="Trace phase singularities"><i></i></label>
      <label id="surface-guide-setting" class="switch" hidden><span id="surface-guide-label">Reconstruction surface</span><input data-setting="surfaceGuide" type="checkbox" aria-label="Reconstruction surface guide"><i></i></label>

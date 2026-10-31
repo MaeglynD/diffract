@@ -1,12 +1,12 @@
 export const arrowFragment=`
-uniform vec3 color;uniform sampler2D elementDepth,elementColor,guideDepth,guideColor;
+uniform float daylightMix;uniform vec3 color;uniform sampler2D elementDepth,elementColor,guideDepth,guideColor;
 uniform vec2 viewportSize,viewportOrigin;uniform bool showMask,showGuide;
 varying float shade,alpha;
 void main(){
  vec2 uv=(gl_FragCoord.xy-viewportOrigin)/viewportSize;float visibility=1.;
  if(showMask&&gl_FragCoord.z>texture2D(elementDepth,uv).r+.0000001)visibility*=1.-texture2D(elementColor,uv).a;
  if(showGuide&&gl_FragCoord.z>texture2D(guideDepth,uv).r+.0000001)visibility*=1.-texture2D(guideColor,uv).a;
- gl_FragColor=vec4(color*shade,alpha*visibility);
+ gl_FragColor=vec4(color*shade*(1.-.5*daylightMix),alpha*visibility);
 }`;
 
 export const arrowVertex=`
@@ -89,6 +89,7 @@ vec3 volumeUv(vec2 xy,float z){return vec3((xy*(dimensions.xy-1.)+.5)/dimensions
 vec3 texturePoint(vec3 p){return volumeUv(vec2(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5),p.x);}
 vec3 phaseColor(float phi){return .55+.43*cos(phi+phaseHue+vec3(0.,2.094395,4.18879));}
 vec3 energyColor(float value){vec3 tint=mix(lowColor,midColor,clamp(value,0.,1.));return mix(tint,highColor,clamp((value-.55)*1.4,0.,.7));}
+uniform float daylightMix;
 uniform vec2 detectorExtent;uniform float detectorZ,peak,detectorOpacity;uniform vec2 probe;uniform bool showProbe;uniform int nodalCount;uniform vec2 nodalPoints[12];
 vec4 samplePlane(vec2 xy){
  if(nativeField&&densityDetector&&abs((xy.y-.5)*2.*halfWidth)>viewHeight)return vec4(.008,.021,.033,0.);
@@ -102,7 +103,8 @@ vec4 samplePlane(vec2 xy){
  else{float phi=atan(e.y,e.x)+(phaseReference==1?carrier:0.);value=pow(clamp(length(e)*exposure/sqrt(max(peak,.000001)),0.,1.),.65);color=mix(vec3(.008,.021,.033),phaseColor(phi),value);}
  float annotationAlpha=0.;for(int i=0;i<12;i++){if(i>=nodalCount)break;float d=length((xy-nodalPoints[i])*2.*halfWidth),mark=1.-smoothstep(.035,.075,abs(d-.19));color=mix(color,vec3(.88,.98,1.),mark*.9);annotationAlpha=max(annotationAlpha,mark*.94);}
  if(showProbe){float ring=1.-smoothstep(.001,.004,abs(length(xy-probe)-.022));color=mix(color,vec3(.85,.97,1.),ring*.85);}
- return vec4(color,max(detectorOpacity*(.035+.965*value),annotationAlpha));
+ float sensorBacking=mix(.035,.72,daylightMix);
+ return vec4(color,max(detectorOpacity*mix(sensorBacking,1.,value),annotationAlpha));
 }
 
 uniform sampler2D sceneDepth,guideDepth,guideColor,maskMap,elementDepth,elementColor;
@@ -140,7 +142,10 @@ void main(){
   if(displayMode==0){float value=dot(e.rg,vec2(cos(phase),-sin(phase)));strength=abs(value)*exposure;tint=value>=0.?positiveColor:negativeColor;}
   else if(displayMode==1){if(p.x>=0.&&(!interferenceEnabled||(linearMix?auxiliaryMix==0.:slitPhase==0.))){vec4 density=energyAt(texturePoint(p));vec3 fraction=fract(vec3(vec2(.5-p.z/(2.*halfWidth),.5+p.y/(2.*halfWidth))*(dimensions.xy-1.),axialIndex(p.x)));strength=sqrt(max(0.,density.r-.5*dot(fraction*(1.-fraction),density.gba)))*exposure;tint=energyColor(strength/(nativeField?1.8*max(fieldReference,.001):1.));}else{vec4 b=vec4(-1.,0.,0.,0.);vec2 bz=vec2(0.);if(p.x>=0.){vec3 uv=texturePoint(p);b=magneticAt(uv);bz=extraAt(uv).rg;if(interferenceEnabled&&(linearMix?auxiliaryMix!=0.:slitPhase!=0.)){vec3 ruv=(vec3(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5,p.x/zMax)*(rightDimensions-1.)+.5)/rightDimensions;vec4 br=texture(rightMagnetic,ruv);b+=vec4(phaseDelta(br.rg),phaseDelta(br.ba));bz+=phaseDelta(texture(rightExtra,ruv).rg);}}strength=sqrt(.5*(dot(e,e)+dot(b,b)+dot(bz,bz)))*exposure;tint=energyColor(strength/(nativeField?1.8*max(fieldReference,.001):1.));}}
   else{strength=length(e.rg)*exposure;tint=phaseColor(atan(e.y,e.x)+(phaseReference==1?phase:0.));}
-  strength=max(strength-threshold,0.);strength=pow(strength/max(fieldReference,.001),volumeContrast)*max(fieldReference,.001);float alpha=1.-exp(-.9044*opacity*(28./max(zMax,28.))*strength*window*ds);over(acc,vec4(tint,alpha));
+  strength=max(strength-threshold,0.);strength=pow(strength/max(fieldReference,.001),volumeContrast)*max(fieldReference,.001);float alpha=1.-exp(-.9044*opacity*(28./max(zMax,28.))*strength*window*ds);
+  // Separate hues on a pale ground while preserving the transfer function for opacity.
+  if(daylightMix>0.) tint-=daylightMix*(.12*tint+.77*min(tint.r,min(tint.g,tint.b)));
+  over(acc,vec4(tint,alpha));
  }
  for(int j=0;j<3;j++){if(surface<3&&sd[surface]<=end){over(acc,sc[surface]);surface++;}}
  if(acc.a<.002)discard;outColor=vec4(acc.rgb/max(acc.a,.0001),acc.a*reveal);

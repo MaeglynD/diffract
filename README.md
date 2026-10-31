@@ -45,7 +45,7 @@ Three material-boundary experiments go beyond the aperture model: **Evanescent e
 - **Look closer.** Inspect a point numerically, compare phase and amplitude, or change the relative phase of two slits.
 - **Keep a place.** Each setup has a shareable URL fragment, such as `/#trefoil`, `/#metamorphosis`, or `/#healing`.
 
-Drag to orbit, scroll to zoom, and right-drag to pan. The main control follows the experiment; touching it pauses its automatic motion. **Space** resumes or pauses that motion, **R** reframes the experiment, and **T** switches between Deepwater and Silver studio lighting. Preferences reset on reload.
+Drag to orbit, scroll to zoom, and right-drag to pan. The main control follows the experiment; touching it pauses its automatic motion. **Space** resumes or pauses that motion, **R** reframes the experiment, and **T** cycles through Silver studio, Daylight, Verdigris and Deepwater (**Shift+T** goes back). Preferences reset on reload.
 
 [Browse the experiments and their mathematics →](docs/technical-reference.md#experiments)
 
