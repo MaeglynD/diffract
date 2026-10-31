@@ -45,7 +45,7 @@ function loading(message,refining=false){$('loading').classList.toggle('ready',!
 function fail(error){$('error').hidden=false;$('error').textContent=error instanceof Error?error.message:String(error);loading('');}
 try{scene=new FieldScene($('stage'),z=>{state.sweeping=false;updateSweep();setDistance(z);},(x,y)=>setProbe({x,y}));scene.onError=fail;}catch(error){fail(`This visualization needs WebGL 2. ${error.message}`);}
 const settings=scene?setupSettings(scene,tex,initial):{options:appearanceFor(initial)},appearance=settings.options;
-if(scene)setupThemeCycle(scene);
+if(scene)setupThemeCycle(scene,settings);
 if(thumbnail){Object.assign(appearance,{labels:false,axes:false,vectors:'none'});scene?.applyAppearance(appearance);}
 
 function acquire(id,quality,onProgress=()=>{}){

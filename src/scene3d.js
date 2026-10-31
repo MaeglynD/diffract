@@ -77,7 +77,7 @@ export class FieldScene{
   await this.studioLoad;
   if(!this.studioTable){
    this.studioTable=new StudioTable();
-   this.scene.add(this.studioTable.surface);
+   this.scene.add(this.studioTable.surface,this.studioTable.backdrop);
    const shadow=this.lightRig.key.shadow;
    shadow.mapSize.set(1024,1024);
    shadow.autoUpdate=false;
@@ -97,9 +97,14 @@ export class FieldScene{
   this.themeTransition.target={background:new THREE.Color(theme.background),sky:new THREE.Color(theme.sky),ground:new THREE.Color(theme.ground),key:new THREE.Color(theme.key),rim:new THREE.Color(theme.rim),tint:shaderColor(theme.opticTint),keyPosition:new THREE.Vector3(...theme.keyPosition),rimPosition:new THREE.Vector3(...theme.rimPosition)};
   if(theme.floor && floor){
    this.themeTransition.floor={
-    shade:floor.floorShade.value.clone(),lit:floor.floorLight.value.clone(),
+    shade:floor.floorShade.value.clone(),lit:floor.floorLight.value.clone(),contact:floor.contactStrength.value,
     targetShade:shaderColor(theme.floor[0]),targetLit:shaderColor(theme.floor[1])
    };
+  }
+  this.themeTransition.reflections=this.scene.environmentIntensity;
+  if(this.studioTable){
+   const uniforms=this.studioTable.backdrop.material.uniforms;
+   this.themeTransition.sweep={amount:uniforms.amount.value,lit:uniforms.lit.value.clone(),target:shaderColor(theme.backlight??theme.background)};
   }
   this.updateTheme(performance.now());
  }
@@ -113,11 +118,19 @@ export class FieldScene{
    const floor=this.studioTable.surface.material.uniforms;
    floor.floorShade.value.copy(t.floor.shade).lerp(t.floor.targetShade,f);
    floor.floorLight.value.copy(t.floor.lit).lerp(t.floor.targetLit,f);
+   floor.contactStrength.value=mix(t.floor.contact,a.contact??.82);
+  }
+  if(t.sweep){
+   const backdrop=this.studioTable.backdrop,u=backdrop.material.uniforms;
+   u.amount.value=mix(t.sweep.amount,a.backlight ? 1 : 0);
+   u.base.value.copy(this.scene.background).convertLinearToSRGB();
+   u.lit.value.copy(t.sweep.lit).lerp(t.sweep.target,f);
+   backdrop.visible=u.amount.value>.001;
   }
   this.uniforms.daylightMix.value=mix(t.daylight,a.light ? 1 : 0);
   const studio=mix(t.studio,a.studio);
   this.studioUniforms.studioMix.value=studio;
-  this.scene.environmentIntensity=studio*4.2;
+  this.scene.environmentIntensity=mix(t.reflections,a.studio*(a.reflections??4.2));
   key.shadow.intensity=studio*.85;
   if(key.castShadow) key.shadow.needsUpdate=true;
   if(p===1 && !a.studio){
@@ -262,8 +275,9 @@ export class FieldScene{
   const bunny=this.experiment?.object==='bunny',start=this.experiment?.analytic?0:bunny?-104:this.experiment?.kind==='beams'?-14:-28,target=new THREE.Vector3((this.zMax+start)*.5,0,0),direction=new THREE.Vector3(...({side:[0,.07,1],end:[1,.04,.001],field:[-.58,.43,1],'3d':this.experiment?.viewDirection||[-.58,.43,1]}[view]||[-.58,.43,1])).normalize();
   const capture=document.body.classList.contains('thumbnail-export'),mobile=this.width<1100&&this.height>this.width,galleryBottom=document.getElementById('experiments').getBoundingClientRect().bottom,bottomReserve=mobile?this.previewRect.height+100:60,usableW=this.mainWidth-(capture?65:mobile?30:this.previewRect.width+72),usableH=capture?this.mainHeight-45:this.mainHeight-galleryBottom-bottomReserve-25;
   // Give the floating preview some room while keeping the apparatus near the viewport centre.
-  const horizontalOffset=capture||mobile?0:(this.previewRect.width+40)/3;
-  this.camera.setViewOffset(this.mainWidth,this.mainHeight,horizontalOffset,capture?0:(bottomReserve-galleryBottom)/2,this.mainWidth,this.mainHeight);this.camera.updateProjectionMatrix();
+  const horizontalOffset=capture||mobile?0:(this.previewRect.width+40)*.22;
+  const verticalOffset=capture?0:(bottomReserve-galleryBottom)*(mobile ? .5 : .32);
+  this.camera.setViewOffset(this.mainWidth,this.mainHeight,horizontalOffset,verticalOffset,this.mainWidth,this.mainHeight);this.camera.updateProjectionMatrix();
   if(capture)target.set(bunny?-70:-6,0,0);
   const right=new THREE.Vector3().crossVectors(this.camera.up,direction).normalize(),up=new THREE.Vector3().crossVectors(direction,right),tan=Math.tan(THREE.MathUtils.degToRad(18));let distance=this.experiment?.analytic?5:30;
   const points=capture||this.experiment?.fitApparatus?[]:(this.vectorSamples||[]).map(s=>s.origin),h=this.experiment?plateHalf(this.experiment):this.half;

@@ -144,7 +144,12 @@ void main(){
   else{strength=length(e.rg)*exposure;tint=phaseColor(atan(e.y,e.x)+(phaseReference==1?phase:0.));}
   strength=max(strength-threshold,0.);strength=pow(strength/max(fieldReference,.001),volumeContrast)*max(fieldReference,.001);float alpha=1.-exp(-.9044*opacity*(28./max(zMax,28.))*strength*window*ds);
   // Separate hues on a pale ground while preserving the transfer function for opacity.
-  if(daylightMix>0.) tint-=daylightMix*(.12*tint+.77*min(tint.r,min(tint.g,tint.b)));
+  if(daylightMix>0.){
+    float core=smoothstep(.12,.68,strength/max(fieldReference,.001));
+    vec3 ink=.86*tint-.58*min(tint.r,min(tint.g,tint.b));
+    vec3 highlight=mix(tint,vec3(1.,.99,.96),.13);
+    tint=mix(tint,mix(ink,highlight,core),daylightMix);
+  }
   over(acc,vec4(tint,alpha));
  }
  for(int j=0;j<3;j++){if(surface<3&&sd[surface]<=end){over(acc,sc[surface]);surface++;}}

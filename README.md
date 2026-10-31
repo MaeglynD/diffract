@@ -45,7 +45,7 @@ Three material-boundary experiments go beyond the aperture model: **Evanescent e
 - **Look closer.** Inspect a point numerically, compare phase and amplitude, or change the relative phase of two slits.
 - **Keep a place.** Each setup has a shareable URL fragment, such as `/#trefoil`, `/#metamorphosis`, or `/#healing`.
 
-Drag to orbit, scroll to zoom, and right-drag to pan. The main control follows the experiment; touching it pauses its automatic motion. **Space** resumes or pauses that motion, **R** reframes the experiment, and **T** cycles through Silver studio, Daylight, Verdigris and Deepwater (**Shift+T** goes back). Preferences reset on reload.
+Drag to orbit, scroll to zoom, and right-drag to pan. The main control follows the experiment; touching it pauses its automatic motion. **Space** resumes or pauses that motion, **R** reframes the experiment, and **T** cycles through Silver studio, Daylight, Carbon, Verdigris and Deepwater (**Shift+T** goes back). Preferences reset on reload.
 
 [Browse the experiments and their mathematics →](docs/technical-reference.md#experiments)
 
@@ -93,7 +93,9 @@ npx wrangler login
 npx wrangler deploy
 ```
 
-[`wrangler.jsonc`](wrangler.jsonc) attaches the site to **diffract.org**. For later updates, `npm run deploy` rebuilds and deploys. The full-size source volumes remain in Git LFS; generated chunks stay in the ignored `dist/` directory. [Cloudflare's static-asset pricing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/) lists free, unlimited asset requests and no storage charge. Domain renewal and any GitHub LFS usage are separate.
+[`wrangler.jsonc`](wrangler.jsonc) attaches the site to **diffract.org**. For automatic deployment, open the existing **diffract** Worker in the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/workers-and-pages). Under **Settings → Builds**, connect `MaeglynD/diffract` on GitHub, choose `main` as the production branch and use the repository root. Set the build command to `git lfs pull && npm run build && node scripts/check-static.mjs` and the deploy command to `npx wrangler deploy`. Enable only the production branch for production-only builds. Subsequent pushes to `main` deploy after the asset checks pass. The first run appears under **Builds**. A clean checkout can fetch about 2 GiB of field data from GitHub LFS. [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+
+For a manual update, `npm run deploy` rebuilds and deploys. The full-size source volumes remain in Git LFS; generated chunks stay in the ignored `dist/` directory. [Cloudflare's static-asset pricing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/) lists free, unlimited asset requests and no storage charge. Domain renewal and any GitHub LFS usage are separate.
 
 ## The physics
 

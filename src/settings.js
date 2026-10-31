@@ -11,7 +11,12 @@ function comfortableRange(el){
  el.addEventListener('input',()=>paintRange(el));paintRange(el);
 }
 export function setupSettings(scene,tex,initial='bunny'){
- let current=initial;const options=appearanceFor(initial);
+ let current=initial, lightingPalette='cyan', palettePicked=false;
+ const options=appearanceFor(initial);
+ function restoreDefaults(){
+  palettePicked=false;
+  Object.assign(options,appearanceFor(current),{palette:lightingPalette});
+ }
  // Remove only this application's legacy saved display preferences.
  try{for(const key of Object.keys(localStorage))if(/^optics-appearance-v\d+$/.test(key))localStorage.removeItem(key);}catch{}
  options.density=Math.round(options.density);
@@ -37,11 +42,15 @@ export function setupSettings(scene,tex,initial='bunny'){
  let scheduled=0,pendingKey;
  const save=(changed,continuous=false)=>{if(!continuous){const key=scheduled&&pendingKey!==changed?undefined:changed;cancelAnimationFrame(scheduled);scheduled=0;reflect(key,false);if(['display','palette','planeSampling','phaseReference'].includes(changed))scene.transitionAppearance(options);else scene.applyAppearance(options);return;}pendingKey=scheduled&&pendingKey!==changed?undefined:changed;if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;reflect(pendingKey);});};
  for(const el of document.querySelectorAll('[data-vector-toggle]'))el.addEventListener('click',()=>{let electric=options.vectors==='both'||options.vectors==='electric',magnetic=options.vectors==='both'||options.vectors==='magnetic';if(el.dataset.vectorToggle==='electric')electric=!electric;else magnetic=!magnetic;options.vectors=electric?(magnetic?'both':'electric'):(magnetic?'magnetic':'none');save('vectors');});
- for(const el of document.querySelectorAll('[data-option]'))el.addEventListener('click',()=>{options[el.dataset.option]=el.dataset.value;save(el.dataset.option);});
+ for(const el of document.querySelectorAll('[data-option]'))el.addEventListener('click',()=>{
+  if(el.dataset.option==='palette') palettePicked=true;
+  options[el.dataset.option]=el.dataset.value;
+  save(el.dataset.option);
+ });
  const viewTabs=[...document.querySelectorAll('.view-modes [role=tab]')];for(const tab of viewTabs)tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=viewTabs.indexOf(tab),j=event.key==='Home'?0:event.key==='End'?2:(i+(event.key==='ArrowRight'?1:2))%3;viewTabs[j].click();viewTabs[j].focus({preventScroll:true});});
  for(const el of panel.querySelectorAll('[data-setting]'))el.addEventListener('input',()=>{const key=el.dataset.setting;options[key]=el.type==='checkbox'?el.checked:Number(el.value);save(key,el.type==='range');});
  for(const el of document.querySelectorAll('input[type=range]'))comfortableRange(el);
- document.getElementById('reset-appearance').addEventListener('click',()=>{cancelAnimationFrame(scheduled);scheduled=0;Object.assign(options,appearanceFor(current));reflect(undefined,false);scene.transitionAppearance(options);});
+ document.getElementById('reset-appearance').addEventListener('click',()=>{cancelAnimationFrame(scheduled);scheduled=0;restoreDefaults();reflect(undefined,false);scene.transitionAppearance(options);});
  for(const button of panel.querySelectorAll('[data-camera]'))button.addEventListener('click',()=>scene.resetView(false,button.dataset.camera));
  const tabs=[...panel.querySelectorAll('[role=tab]')];
  let tabChange=0;
@@ -56,7 +65,16 @@ export function setupSettings(scene,tex,initial='bunny'){
  }
 
  for(const tab of tabs){tab.addEventListener('click',()=>selectTab(tab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next]);tabs[next].focus();});}
- reflect();return{options,setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},useExperiment(id){current=id;cancelAnimationFrame(scheduled);scheduled=0;Object.assign(options,appearanceFor(id));reflect(undefined,false);scene.options={...options};}};
+ reflect();
+ return {
+  options,
+  setLightingPalette(palette){
+   lightingPalette=palette;
+   if(!palettePicked && options.palette!==palette){options.palette=palette;save('palette');}
+  },
+  setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},
+  useExperiment(id){current=id;cancelAnimationFrame(scheduled);scheduled=0;restoreDefaults();reflect(undefined,false);scene.options={...options};}
+ };
 }
 export function showElement(e,tex){
  const canvas=document.getElementById('element-preview'),phasePlate=e.kind==='phase'||e.kind==='axicon',ctx=canvas.getContext('2d');canvas.dataset.experiment=e.id;ctx.fillStyle=e.analytic?'#0b1821':'#9dd8e3';ctx.fillRect(0,0,200,200);let image=maskImages.get(e.id);const draw=()=>{if(canvas.dataset.experiment===e.id)ctx.drawImage(image,0,e.analytic?42.5:0,200,e.analytic?115:200);};if(image?.complete)draw();else{image=new Image();maskImages.set(e.id,image);image.onload=draw;image.src=e.analytic?'./assets/previews/'+e.id+'.svg':'./assets/masks/'+e.id+'.png';}

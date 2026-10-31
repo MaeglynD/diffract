@@ -11,11 +11,18 @@
   --tab-strip:#102721eb; --dialog-surface:#172f29;
 }
 #app[data-theme="Daylight"] {
-  --engraving:#223941; --secondary:#435c65; --brass:#517883; --thumb:#f6fbfb;
-  --label:#213b44; --label-shadow:0 1px 2px #eff6f6, 0 0 5px #f1f6f3;
-  --tab-strip:#e9eeeff5; --dialog-surface:#f5f7f7;
+  --engraving:#1f343b; --secondary:#384f56; --brass:#516a70; --thumb:#f0f3ed;
+  --label:#1c343c; --label-shadow:0 1px 2px #d7dfde, 0 0 5px #dde2dd;
+  --tab-strip:#dce2e1f5; --dialog-surface:#eaeeeb;
   --electric:#146276; --magnetic:#896018; --accent:#2b6372;
 }
+#app[data-theme="Carbon"] {
+  --engraving:#e5eaf3; --secondary:#a6b1bf; --brass:#929fb0; --thumb:#dce5f0;
+  --label:#d8e2ef; --label-shadow:0 1px 3px #06080a, 0 0 7px #0f141a;
+  --tab-strip:#0c1015eb; --dialog-surface:#14181e;
+}
+#app[data-theme="Daylight"][data-palette="amber"] {--electric:#86541b;--magnetic:#375e92}
+#app[data-theme="Daylight"][data-palette="silver"] {--electric:#445a63;--magnetic:#72578b}
 [data-studio] .experiment { color: var(--secondary); }
 [data-studio] .experiment:is(:hover,[aria-pressed=true]) { color: var(--engraving); }
 [data-studio] .world-label,
@@ -37,7 +44,7 @@
 [data-studio] .detector-window .view-modes button { color: var(--secondary); }
 [data-studio] .detector-window .view-modes button:is(:hover,[aria-selected=true]) { color: var(--engraving); }
 [data-studio] :is(.control-heading,.setting-label,.setting>label,.switch,.settings-tabs button,.cycle-heading,.camera-choices button,.segmented button,.settings-footer button,.comparison-control button,.focus-stops button) { color: var(--secondary); }
-[data-studio] :is(.settings-heading,.setting output,#experiment-value,#distance-value,#detector-handle,#theme-toast),
+[data-studio] :is(.settings-heading,.setting output,#experiment-value,#distance-value,#detector-handle),
 [data-studio] :is(.settings-tabs button,.segmented button,.comparison-control button,.focus-stops button):is([aria-selected=true],[aria-pressed=true]) { color: var(--engraving); }
 [data-studio] input[type=range] { accent-color: var(--brass); }
 [data-studio] input[type=range]::-webkit-slider-runnable-track { background: linear-gradient(90deg,var(--brass) var(--fill),#b7adb32e var(--fill)); }

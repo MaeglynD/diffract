@@ -3,9 +3,12 @@ export const THEMES=[
  {name:'Silver studio',background:0x10151b,panel:'25 32 39',edge:'193 206 213',studio:1,
   sky:0xe7d8c5,ground:0x342f3d,fill:.82,key:0xffe4bf,keyPower:2.35,keyPosition:[-42,48,27],rim:0xb3d6ff,rimPower:3.55,rimPosition:[32,19,-52],
   exposure:.99,opticTint:0xf3e2cc,opticFill:1.18,floor:[0x161a1e,0x3b4248]},
- {name:'Daylight',light:true,background:0xe1e7e8,panel:'246 249 249',edge:'59 92 104',studio:1,
-  sky:0xf4faff,ground:0x596a72,fill:1.28,key:0xfff4df,keyPower:1.95,keyPosition:[-36,56,23],rim:0xc8efff,rimPower:2.35,rimPosition:[38,17,-43],
-  exposure:.88,opticTint:0xccedf5,opticFill:1.02,floor:[0xc3cfd3,0xe6eaea]},
+ {name:'Daylight',light:true,palette:'amber',background:0xbac3c5,backlight:0xe0e4df,panel:'220 227 226',edge:'59 83 91',studio:1,
+  sky:0xe7eeed,ground:0x28363e,fill:.78,key:0xfff0df,keyPower:2.6,keyPosition:[-46,40,21],rim:0xd9f3ff,rimPower:2.05,rimPosition:[30,16,-42],
+  exposure:.84,reflections:3.3,contact:.46,opticTint:0xe1e8de,opticFill:.95,floor:[0xa5b2b7,0xd0d8d8]},
+ {name:'Carbon',palette:'silver',background:0x07090c,backlight:0x141a20,panel:'15 18 23',edge:'173 186 201',studio:1,
+  sky:0xbdc9dd,ground:0x10161c,fill:.48,key:0xe1e7f3,keyPower:2.3,keyPosition:[-27,44,48],rim:0xfbe4d2,rimPower:3.9,rimPosition:[32,18,-46],
+  exposure:.86,reflections:3.7,opticTint:0xd3deea,opticFill:1.03,floor:[0x0b0e12,0x242b33]},
  {name:'Verdigris',background:0x0b201e,panel:'18 45 40',edge:'159 207 181',studio:1,
   sky:0xcde7d8,ground:0x193a36,fill:.9,key:0xffecc6,keyPower:2.55,keyPosition:[-36,37,44],rim:0x91f1cc,rimPower:3.25,rimPosition:[24,14,-47],
   exposure:.91,opticTint:0xd6f5e4,opticFill:1.12,floor:[0x122b28,0x34534b]},
@@ -14,9 +17,8 @@ export const THEMES=[
   exposure:.85,opticTint:0xffffff,opticFill:1}
 ];
 
-export function setupThemeCycle(scene) {
-  let index=0, revision=0, timer;
-  const toast=document.getElementById('theme-toast');
+export function setupThemeCycle(scene,settings) {
+  let index=0, revision=0;
   const choices=document.querySelector('.lighting-choices');
   for(const [i,theme] of THEMES.entries()){
     const button=document.createElement('button');
@@ -26,7 +28,7 @@ export function setupThemeCycle(scene) {
     button.addEventListener('click',()=>{if(index!==i){index=i;apply(true);}});
     choices.append(button);
   }
-  async function apply(announce=false) {
+  async function apply(animate=false) {
     const theme=THEMES[index], ticket=++revision;
     const root=document.documentElement;
     const background='#'+theme.background.toString(16).padStart(6,'0');
@@ -41,13 +43,8 @@ export function setupThemeCycle(scene) {
     root.style.colorScheme=theme.light?'light':'dark';
     if(theme.studio) await scene.prepareStudio();
     if(ticket!==revision) return;
-    scene.applyTheme(theme,announce);
-    if(announce) {
-      toast.textContent=theme.name;
-      toast.classList.add('visible');
-      clearTimeout(timer);
-      timer=setTimeout(()=>toast.classList.remove('visible'),1600);
-    }
+    settings.setLightingPalette(theme.palette??'cyan');
+    scene.applyTheme(theme,animate);
   }
   document.addEventListener('keydown',event=>{
     if(event.key.toLowerCase()!=='t'||event.repeat||event.ctrlKey||event.metaKey||event.altKey||

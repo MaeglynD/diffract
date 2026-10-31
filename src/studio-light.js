@@ -44,6 +44,22 @@ export function loadStudioMap() {
 export class StudioTable {
   constructor() {
     this.hasSupport=false;
+    // A broad pool of reflected light on the studio backdrop. Its top falls
+    // back to the clear colour under the catalogue, as on a seamless sweep.
+    this.backdrop=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
+      uniforms:{base:{value:new THREE.Color()},lit:{value:new THREE.Color()},amount:{value:0}},
+      depthTest:false,depthWrite:false,
+      vertexShader:`varying vec2 p; void main(){p=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+      fragmentShader:`uniform vec3 base,lit;uniform float amount;varying vec2 p;
+        void main(){
+          vec2 offset=(p-vec2(.40,.51))*vec2(1.45,1.75);
+          float rolloff=exp(-3.2*dot(offset,offset))*(1.-smoothstep(.65,.99,p.y));
+          gl_FragColor=vec4(mix(base,lit,amount*rolloff),1.);
+        }`
+    }));
+    this.backdrop.frustumCulled=false;
+    this.backdrop.renderOrder=-10000;
+    this.backdrop.visible=false;
     this.map=new THREE.WebGLRenderTarget(512,512,{minFilter:THREE.LinearMipmapLinearFilter,generateMipmaps:true});
     this.camera=new THREE.OrthographicCamera();
     this.camera.layers.set(4);
@@ -62,11 +78,11 @@ export class StudioTable {
       fragmentShader:`varying float height;void main(){gl_FragColor=vec4(vec3(exp(-height)),1.);}`
     });
     this.surface=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.ShaderMaterial({
-      uniforms:{contact:{value:this.map.texture},strength:{value:0},
+      uniforms:{contact:{value:this.map.texture},strength:{value:0},contactStrength:{value:.82},
         floorShade:{value:new THREE.Color(.086,.101,.118)},floorLight:{value:new THREE.Color(.23,.258,.282)}},
       transparent:true,depthWrite:false,
       vertexShader:`varying vec2 p;void main(){p=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader:`uniform sampler2D contact;uniform float strength;uniform vec3 floorShade,floorLight;varying vec2 p;
+      fragmentShader:`uniform sampler2D contact;uniform float strength,contactStrength;uniform vec3 floorShade,floorLight;varying vec2 p;
         void main(){
           vec2 uv=vec2(p.x,1.-p.y);
           vec2 offset=(uv-.5)*2.;
@@ -76,7 +92,7 @@ export class StudioTable {
                        .16*textureLod(contact,uv,4.9).r;
           float wash=exp(-3.4*dot(offset+vec2(.23,-.20),offset+vec2(.23,-.20)));
           vec3 slate=mix(floorShade,floorLight,wash);
-          gl_FragColor=vec4(slate*(1.-.82*shadow),fade*strength*.88);
+          gl_FragColor=vec4(slate*(1.-contactStrength*shadow),fade*strength*.88);
         }`
     }));
     this.surface.rotation.x=-Math.PI/2;
