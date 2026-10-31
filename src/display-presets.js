@@ -1,7 +1,7 @@
 export const DEFAULT_APPEARANCE=Object.freeze({display:'energy',planeSampling:'average',phaseReference:'relative',detectorExposure:'adaptive',detectorZoom:1,palette:'cyan',opacity:.55,threshold:.035,exposure:1,vectors:'none',vectorScale:'readable',density:4,gain:1.05,incident:true,maskOpacity:.62,detectorOpacity:.92,detector:true,axes:true,labels:true,speed:.2,surfaceGuide:true,vortexLines:true,volumeContrast:1,focusEmphasis:false});
 
 // Display-only starting points. Field amplitudes, propagation and probe values
-// are unchanged. Explicit user adjustments survive switching experiments.
+// are unchanged. Every new experiment restores its complete curated defaults.
 const LOOKS={
  healing:{opacity:1.4,threshold:.04,volumeContrast:2,exposure:1.5,density:3,gain:.9,detectorZoom:2.5,detectorExposure:'fixed'},
  trefoil:{display:'phase',opacity:.065,threshold:.08,density:3,gain:.6,detectorZoom:3.5,maskOpacity:.32,detectorOpacity:.6},

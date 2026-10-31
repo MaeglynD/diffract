@@ -73,23 +73,48 @@ export class FieldScene{
   key.color.copy(t.key).lerp(b.key,f);key.intensity=mix(t.keyPower,a.keyPower);key.position.copy(t.keyPosition).lerp(b.keyPosition,f);rim.color.copy(t.rim).lerp(b.rim,f);rim.intensity=mix(t.rimPower,a.rimPower);rim.position.copy(t.rimPosition).lerp(b.rimPosition,f);
   this.renderer.toneMappingExposure=mix(t.exposure,a.exposure);this.studioUniforms.studioTint.value.copy(t.tint).lerp(b.tint,f);this.studioUniforms.studioFill.value=mix(t.opticFill,a.opticFill);this.studioUniforms.studioDirection.value.copy(key.position).normalize();if(p===1)this.themeTransition=null;
  }
- async prepareExperiment(e){
+ async prepareExperiment(e,signal){
   if(this.experiment?.id===e.id)return null;
-  const bundle={optic:makeOpticalElement(e),illumination:makeIllumination(e),models:new THREE.Group(),topology:new THREE.Group()};
+  const bundle={optic:makeOpticalElement(e,signal),illumination:makeIllumination(e),models:new THREE.Group(),topology:new THREE.Group()};
   try{
    const ready=await Promise.allSettled([bundle.optic.userData.ready,bundle.optic.userData.maskMap?.userData.ready,
-    e.object==='bunny'?makeBunnyModels(this.uniforms).then(root=>bundle.models=root):null,
+    e.object==='bunny'?makeBunnyModels(this.uniforms,signal).then(root=>bundle.models=root):null,
     e.vortex?makeTopology(e.id,this.uniforms).then(root=>bundle.topology=root):null]);
    const failure=ready.find(item=>item.status==='rejected');if(failure)throw failure.reason;
    if(e.id==='metamorphosis')bundle.topology=makeImageGuides(this.uniforms);
    if(e.id==='saturn')bundle.topology.add(makeDesignCurves(this.uniforms));
+   signal?.throwIfAborted();
+   const staging=new THREE.Scene(),camera=this.camera.clone();camera.layers.set(0);
+   staging.add(...Object.values(bundle));
+   await this.renderer.compileAsync(staging,camera,this.scene);
+   camera.layers.set(2);await this.renderer.compileAsync(staging,camera,this.scene);
+   // Offscreen prepasses use linear output and no tone mapping. Preparing only
+   // the canvas variants still triggers shader compilation on the first frame.
+   camera.layers.set(4);const previousTarget=this.renderer.getRenderTarget();
+   this.renderer.setRenderTarget(this.depthTarget);
+   const prepass=this.renderer.compileAsync(staging,camera,this.scene);
+   this.renderer.setRenderTarget(previousTarget);await prepass;
+   this.shaderPreparation??=(async()=>{const sharedCamera=this.camera.clone();sharedCamera.layers.set(0);await this.renderer.compileAsync(this.scene,sharedCamera);sharedCamera.layers.set(2);await this.renderer.compileAsync(this.scene,sharedCamera);await this.renderer.compileAsync(this.previewScene,this.previewCamera);await this.renderer.compileAsync(this.transitionScene,this.previewCamera);})();
+   await this.shaderPreparation;
+   const maps=new Set();staging.traverse(object=>{for(const material of(Array.isArray(object.material)?object.material:[object.material])){if(material?.map)maps.add(material.map);for(const uniform of Object.values(material?.uniforms||{}))if(uniform.value?.isTexture&&uniform.value.image)maps.add(uniform.value);}});
+   for(const map of maps){signal?.throwIfAborted();this.renderer.initTexture(map);await new Promise(resolve=>setTimeout(resolve,0));}
+   // Three defers uniform/attribute reflection until first use. Warm those
+   // linked-program tables cooperatively, rather than all inside one frame.
+   this.preparedPrograms??=new WeakSet();
+   for(const program of this.renderer.info.programs){
+    if(this.preparedPrograms.has(program))continue;
+    while(!program.isReady()){signal?.throwIfAborted();await new Promise(resolve=>setTimeout(resolve,8));}
+    signal?.throwIfAborted();program.getUniforms();program.getAttributes();this.preparedPrograms.add(program);
+    await new Promise(resolve=>setTimeout(resolve,0));
+   }
+   signal?.throwIfAborted();
    return bundle;
   }catch(error){this.discardPrepared(bundle);throw error;}
  }
  discardPrepared(bundle){if(bundle)for(const root of Object.values(bundle))dispose(root);}
  setExperiment(e,volume,gpu,prepared){
 
-  const changed=this.experiment?.id!==e.id;if(changed){this.clearAuxiliary();this.setSlitPhase(0);}this.experiment=e;this.volume=volume;this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.kind==='beams'?0:10;
+  const changed=this.experiment?.id!==e.id;if(changed){this.pendingAppearance=null;this.clearAuxiliary();this.setSlitPhase(0);this.presentationStart=0;const app=document.getElementById('app');app.dataset.ready='false';app.dataset.presented='false';for(const el of document.querySelectorAll('.world-label,#detector-handle')){el.hidden=true;delete el.dataset.positioned;}}this.experiment=e;this.volume=volume;this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.kind==='beams'?0:10;
   for(const name of['electricMap','magneticMap','extraMap','energyMap'])if(this.uniforms[name].value!==this.emptyTexture)this.uniforms[name].value.dispose();
   [this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]=gpu||[...volume.textures.map(t=>texture3D(t,volume.nx,volume.ny,volume.nz)),energyTexture(volume.energy,volume.nx,volume.ny,volume.nz)];
   this.uniforms.dimensions.value.set(volume.nx,volume.ny,volume.nz);this.uniforms.zMax.value=e.zMax;this.uniforms.travelMax.value=e.zMax;this.uniforms.halfWidth.value=e.half;this.uniforms.plateHalf.value=plateHalf(e);
@@ -107,9 +132,10 @@ export class FieldScene{
   if(this.models.userData.target)updateBunnySurface(this.models,volume);
   this.applyAppearance(this.options,true);
   const app=document.getElementById('app');app.dataset.volumeDimensions=`${volume.nx},${volume.ny},${volume.nz}`;app.dataset.quality=volume.quality;if(volume.quality==='full'&&new URLSearchParams(location.search).has('verify'))app.dataset.gpuValidation=JSON.stringify(verifyGpuVolume(this.renderer,volume,[this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]));
-  document.getElementById('optic-name').textContent=e.opticLabel||(isProgrammable(e)?'Hologram display':e.kind==='beams'?'Coherent beam launchers':e.kind==='axicon'?'Axicon':e.kind==='phase'?'Phase relief + attenuation':'Aperture');this.updateReady();
+  document.getElementById('optic-name').textContent=e.opticLabel||(isProgrammable(e)?'Hologram display':e.kind==='beams'?'Coherent beam launchers':e.kind==='axicon'?'Axicon':e.kind==='phase'?'Phase relief + attenuation':'Aperture');
  }
  applyAppearance(options,force=false){
+  this.pendingAppearance=null;
   const old=this.options;this.options={...old,...options};const o=this.options,u=this.uniforms,p=PALETTES[o.palette]||PALETTES.cyan;
   u.planeSampling.value=o.planeSampling==='instantaneous'?1:0;u.phaseReference.value=o.phaseReference==='instantaneous'?1:0;u.phaseHue.value={cyan:0,amber:1.05,silver:2.1}[o.palette];u.opacity.value=o.opacity;u.threshold.value=o.threshold;u.exposure.value=o.exposure;u.displayMode.value={field:0,energy:1,phase:2}[o.display];u.incidentLength.value=o.incident?this.incidentLength||0:0;
   u.positiveColor.value.copy(shaderColor(p[0]));u.negativeColor.value.copy(shaderColor(p[1]));u.lowColor.value.copy(shaderColor(p[4]));u.midColor.value.copy(shaderColor(p[5]));u.highColor.value.copy(shaderColor(p[6]));
@@ -188,19 +214,34 @@ export class FieldScene{
  }
  project(point){const p=new THREE.Vector3(...point).project(this.camera);return{x:(p.x*.5+.5)*this.mainWidth,y:(.5-p.y*.5)*this.mainHeight,visible:p.z<1&&Math.abs(p.x)<1&&Math.abs(p.y)<1};}
  updateReady(){document.getElementById('app').dataset.ready=String(document.getElementById('app').dataset.experiment===this.experiment?.id&&!!this.volume&&this.surfaceReady&&this.topologyReady!==false&&(this.experiment?.object!=='bunny'||!!this.models.userData.target));}
- positionLabel(id,point,visible=true){const p=this.project(point),el=document.getElementById(id);if(!el)return;el.hidden=!visible||!p.visible;if(el.classList.contains('world-label')){if(!el.hidden)this.labelItems.push({el,p});}else el.style.transform=`translate(${p.x}px,${p.y}px)`;}
+ positionLabel(id,point,visible=true){const p=this.project(point),el=document.getElementById(id);if(!el)return;el.hidden=!this.volume||!visible||!p.visible||!Number.isFinite(p.x+p.y);if(el.classList.contains('world-label')){if(!el.hidden)this.labelItems.push({el,p});}else if(!el.hidden){el.style.transform=`translate(${p.x}px,${p.y}px)`;el.dataset.positioned='true';}}
  async uploadVolume(volume,active=()=>true,onProgress=()=>{}){
-  const count=volume.energy?4:3,textures=[],next=()=>new Promise(resolve=>requestAnimationFrame(resolve));
-  let deadline=performance.now()+5;
-  for(let c=0;c<count;c++){if(!active()){textures.forEach(t=>t.dispose());return null;}const t=(c===3?energyTexture:texture3D)(null,volume.nx,volume.ny,volume.nz);t.source.dataReady=false;this.renderer.initTexture(t);textures.push(t);if(performance.now()>deadline){await next();deadline=performance.now()+5;}}
-  const stride=volume.nx*volume.ny*4;
-  for(let z=0;z<volume.nz;z+=8){if(!active()){textures.forEach(t=>t.dispose());return null;}const depth=Math.min(8,volume.nz-z);
-   for(let c=0;c<count;c++){const data=c===3?volume.energy:volume.textures[c],part=(c===3?energyTexture:texture3D)(data.subarray(z*stride,(z+depth)*stride),volume.nx,volume.ny,depth);this.renderer.copyTextureToTexture(part,textures[c],null,new THREE.Vector3(0,0,z));part.dispose();}
+  const count=volume.energy?4:3,textures=[],next=()=>new Promise(resolve=>requestAnimationFrame(resolve)),gl=this.renderer.getContext();
+  const drain=async()=>{const fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush();try{while(active()){const status=gl.clientWaitSync(fence,0,0);if(status===gl.WAIT_FAILED)throw Error('Field texture upload failed');if(status!==gl.TIMEOUT_EXPIRED)return;await new Promise(resolve=>setTimeout(resolve,0));}}finally{gl.deleteSync(fence);}};
+  try{let deadline=performance.now()+5;
+  const track=(stage,start)=>{const ms=performance.now()-start;if(ms>20){this.uploadStalls??=[];this.uploadStalls.push({stage,at:Math.round(start),ms:Math.round(ms)});if(this.uploadStalls.length>8)this.uploadStalls.shift();document.getElementById('app').dataset.uploadStalls=JSON.stringify(this.uploadStalls);}};
+  for(let c=0;c<count;c++){if(!active()){textures.forEach(t=>t.dispose());return null;}const start=performance.now(),t=(c===3?energyTexture:texture3D)(null,volume.nx,volume.ny,volume.nz);t.source.dataReady=false;this.renderer.initTexture(t);textures.push(t);track('allocate '+c,start);if(performance.now()>deadline){await next();deadline=performance.now()+5;}}
+  await drain();
+  const stride=volume.nx*volume.ny*4,batch=Math.max(1,Math.min(16,Math.floor(4*1024**2/(stride*2*count))));
+  for(let z=0;z<volume.nz;z+=batch){if(!active()){textures.forEach(t=>t.dispose());return null;}const depth=Math.min(batch,volume.nz-z);
+   // Three's general copy helper queries five GL unpack parameters per slice.
+   // Those synchronous queries can wait for queued volume draws. These tightly
+   // packed CPU slices need no readback; reset Three's state cache afterwards.
+   const start=performance.now();gl.activeTexture(gl.TEXTURE0);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
+   for(const parameter of[gl.UNPACK_ROW_LENGTH,gl.UNPACK_IMAGE_HEIGHT,gl.UNPACK_SKIP_PIXELS,gl.UNPACK_SKIP_ROWS,gl.UNPACK_SKIP_IMAGES])gl.pixelStorei(parameter,0);
+   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+   for(let c=0;c<count;c++){const data=c===3?volume.energy:volume.textures[c];gl.bindTexture(gl.TEXTURE_3D,this.renderer.properties.get(textures[c]).__webglTexture);gl.texSubImage3D(gl.TEXTURE_3D,0,0,0,z,volume.nx,volume.ny,depth,gl.RGBA,gl.HALF_FLOAT,data.subarray(z*stride,(z+depth)*stride));}
+   gl.bindTexture(gl.TEXTURE_3D,null);this.renderer.resetState();track('slice '+z,start);
+   // Bound queued transfer memory. Waiting on a fence is asynchronous; filling
+   // the driver's upload queue until texSubImage3D blocks is not.
+   await drain();
    onProgress(Math.min(1,(z+depth)/volume.nz));if(performance.now()>deadline){await next();deadline=performance.now()+5;}
-  }return textures;
+  }return textures;}catch(error){textures.forEach(t=>t.dispose());throw error;}
  }
  captureTransition(duration=360){if(!this.volume)return Promise.resolve();this.transitionDuration=duration;return new Promise(resolve=>{(this.capturePending??=[]).push(resolve);});}
+ transitionAppearance(options){if(!this.volume){this.applyAppearance(options);return;}this.pendingAppearance={...options};}
  render(phase,now){
+  const renderStarted=performance.now();
   this.updateTheme(now);
   if(this.cameraTween){const t=this.cameraTween,f=Math.min(1,(now-t.start)/380),s=1-(1-f)**3;this.camera.position.lerpVectors(t.from,t.to,s);this.controls.target.lerpVectors(t.fromTarget,t.target,s);if(f===1)this.cameraTween=null;}
   this.uniforms.reveal.value=1;this.eArrows.material.uniforms.reveal.value=this.bArrows.material.uniforms.reveal.value=1;
@@ -211,7 +252,12 @@ export class FieldScene{
   const imageGuide=this.experiment?.id==='metamorphosis'?(this.topology.userData.imageGuides||[]).find(g=>Math.abs(g.z-this.z)<3):null;const designLabel=document.getElementById('design-label'),designText=imageGuide?imageGuide.name+' · guide':'Design curves';if(designLabel.textContent!==designText)designLabel.textContent=designText;this.positionLabel('design-label',[imageGuide?.z||40,10,0],!!(this.options.labels&&this.options.surfaceGuide&&(this.experiment?.id==='saturn'||imageGuide)));
   this.positionLabel('obstacle-label',[this.experiment?.interfaceZ||0,5,0],!!(this.options.labels&&this.experiment?.interfaceZ));
   layoutLabels(this.labelItems,this.width,this.height,this.previewRect);
-  const renderer=this.renderer,gl=renderer.getContext(),timer=this.gpuTimer;if(timer&&this.gpuQuery&&gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT_AVAILABLE)){if(!gl.getParameter(timer.GPU_DISJOINT_EXT))document.getElementById('app').dataset.gpuMs=(gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT)/1e6).toFixed(2);gl.deleteQuery(this.gpuQuery);this.gpuQuery=null;}const measure=timer&&!this.gpuQuery;if(measure){this.gpuQuery=gl.createQuery();gl.beginQuery(timer.TIME_ELAPSED_EXT,this.gpuQuery);}const bg=this.scene.background;renderer.setScissorTest(false);this.scene.background=null;
+  const renderer=this.renderer,gl=renderer.getContext(),timer=this.gpuTimer;
+  if(timer&&this.gpuQuery&&gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT_AVAILABLE)){
+   if(!gl.getParameter(timer.GPU_DISJOINT_EXT)){const ms=gl.getQueryParameter(this.gpuQuery,gl.QUERY_RESULT)/1e6;this.gpuFrameMs=this.gpuFrameMs?this.gpuFrameMs*.8+ms*.2:ms;document.getElementById('app').dataset.gpuMs=ms.toFixed(2);}
+   gl.deleteQuery(this.gpuQuery);this.gpuQuery=null;
+  }
+  const measure=timer&&!this.gpuQuery;if(measure){this.gpuQuery=gl.createQuery();gl.beginQuery(timer.TIME_ELAPSED_EXT,this.gpuQuery);}const bg=this.scene.background;renderer.setScissorTest(false);this.scene.background=null;
   // Mesh depth prepass: the ray integral stops at the first solid surface.
   this.camera.layers.set(4);renderer.setRenderTarget(this.depthTarget);renderer.setClearColor(0,0);renderer.clear();renderer.render(this.scene,this.camera);
   this.camera.layers.set(5);renderer.setRenderTarget(this.elementTarget);renderer.clear();renderer.render(this.scene,this.camera);
@@ -222,7 +268,9 @@ export class FieldScene{
   const p=this.previewRect;if(p&&this.volume&&p.width>0&&p.height>0){renderer.clearDepth();renderer.setScissor(p.x,p.y,p.width,p.height);renderer.setViewport(p.x,p.y,p.width,p.height);renderer.render(this.previewScene,this.previewCamera);}
   renderer.setScissorTest(false);renderer.setViewport(0,0,this.width,this.height);
   if(this.transitionStart){const t=Math.min(1,(now-this.transitionStart)/(this.transitionDuration||360));this.transitionMaterial.uniforms.alpha.value=1-t*t*(3-2*t);renderer.render(this.transitionScene,this.previewCamera);if(t===1)this.transitionStart=0;}
-  if(this.capturePending){renderer.copyFramebufferToTexture(this.transitionTexture,new THREE.Vector2(0,0));this.transitionStart=now;const done=this.capturePending;this.capturePending=null;for(const resolve of done)resolve();}
+  if(this.capturePending||this.pendingAppearance){renderer.copyFramebufferToTexture(this.transitionTexture,new THREE.Vector2(0,0));this.transitionStart=now;const done=this.capturePending||[];this.capturePending=null;if(this.pendingAppearance){const next=this.pendingAppearance;this.pendingAppearance=null;this.transitionDuration=220;this.applyAppearance(next);}for(const resolve of done)resolve();}
   if(measure)gl.endQuery(timer.TIME_ELAPSED_EXT);const transition=this.transitionStart?'active':'idle',app=document.getElementById('app');if(app.dataset.transition!==transition)app.dataset.transition=transition;
+  if(this.volume){this.updateReady();app.dataset.hasScene='true';this.presentationStart||=now;if(now-this.presentationStart>320&&!this.transitionStart)app.dataset.presented='true';}
+  const cost=performance.now()-renderStarted;if(cost>30){this.slowRenders??=[];this.slowRenders.push({at:Math.round(renderStarted),ms:Math.round(cost)});if(this.slowRenders.length>8)this.slowRenders.shift();app.dataset.slowRender=JSON.stringify(this.slowRenders);}
  }
 }

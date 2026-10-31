@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import {maskHalf} from './experiments.js';
 import {addPlateMount,solid} from './setup-hardware.js';
 import {forkLensHeight} from './element-relief.js';
+import {loadGeometry} from './geometry-data.js';
 export const plateHalf=maskHalf;
 export const isProgrammable=e=>e.programmable||['bunny','rabbit','hologram'].includes(e.id);
-const maps=new Map(),reliefs=new Map();
+const maps=new Map();
 export function opticalMap(e){if(!maps.has(e.id)){let done,fail;const ready=new Promise((resolve,reject)=>{done=resolve;fail=reject;});const map=new THREE.TextureLoader().load('./assets/masks/'+e.id+'.surface.png',()=>done(),undefined,error=>{maps.delete(e.id);fail(error);});map.anisotropy=4;map.userData.shared=true;map.userData.ready=ready;maps.set(e.id,map);}return maps.get(e.id);}
 
 const studio=()=>({studioTint:{value:new THREE.Color(1,1,1)},studioFill:{value:1},studioDirection:{value:new THREE.Vector3(-.4,.8,1).normalize()}});
 function glassMaterial(){return new THREE.ShaderMaterial({transparent:false,depthWrite:true,depthTest:true,side:THREE.DoubleSide,uniforms:{opacity:{value:.62},...studio()},vertexShader:`attribute float transmission;varying vec3 n,v;varying float a;void main(){vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);a=transmission;gl_Position=projectionMatrix*p;}`,fragmentShader:`uniform vec3 studioTint,studioDirection;uniform float studioFill;uniform float opacity;varying vec3 n,v;varying float a;void main(){vec3 N=normalize(n);if(!gl_FrontFacing)N=-N;vec3 V=normalize(v),L=normalize(studioDirection);float diffuse=.35+.65*abs(dot(N,L)),fresnel=pow(1.-abs(dot(N,V)),3.),spec=pow(max(0.,dot(N,normalize(L+V))),36.);vec3 color=vec3(.31,.49,.57)*diffuse*(.65+.35*sqrt(max(a,0.)))+vec3(.77,.91,.95)*(spec*.65+fresnel*.22);gl_FragColor=vec4(color*studioTint*studioFill,clamp((opacity/.62)*(.62*(.45+.3*fresnel)+.4*(1.-sqrt(clamp(a,0.,1.)))),0.,.92));}`});}
-function reliefData(id){if(!reliefs.has(id))reliefs.set(id,fetch('./assets/elements/'+id+'.relief').then(r=>{if(!r.ok)throw Error('Optical element unavailable');return r.arrayBuffer();}));return reliefs.get(id);}
 function sheetMaterial(map,cut=.5,display=false){return new THREE.ShaderMaterial({side:THREE.DoubleSide,uniforms:{...studio(),map:{value:map},cut:{value:cut},opacity:{value:.62},display:{value:display}},vertexShader:`varying vec2 uv2;varying vec3 n,v;void main(){uv2=uv;vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}`,fragmentShader:`uniform vec3 studioTint,studioDirection;uniform float studioFill;uniform sampler2D map;uniform float cut,opacity;uniform bool display;varying vec2 uv2;varying vec3 n,v;void main(){vec4 t=texture2D(map,uv2);if(!display&&t.a<cut)discard;vec3 N=normalize(n),V=normalize(v);float edge=pow(1.-abs(dot(N,V)),3.),spec=pow(abs(dot(N,normalize(studioDirection+V))),38.);vec3 c=vec3(.10,.18,.22)+vec3(.12,.19,.21)*edge+vec3(.2,.27,.29)*spec;if(display){float trace=clamp((t.b-.52)*3.,0.,1.);float grid=step(.92,fract(uv2.x*160.))+step(.92,fract(uv2.y*160.));c=mix(vec3(.055,.12,.15),vec3(.30,.51,.55),trace*.7)+.013*grid;}gl_FragColor=vec4(c*studioTint*studioFill,pow(opacity,display?.28:.45));}`});}
-export function makeOpticalElement(e){
+export function makeOpticalElement(e,signal){
  const root=new THREE.Group(),h=plateHalf(e);root.userData.maskMap=opticalMap(e);root.userData.disposed=false;if(e.kind==='beams')return root;
  const phase=e.kind==='phase',glass=phase||e.kind==='axicon',programmable=isProgrammable(e);addPlateMount(root,h,programmable);root.userData.glass=glass;root.userData.surfaces=[];
  if(e.interfaceZ){const r=e.obstacleRadius,disc=solid(new THREE.CylinderGeometry(r,r,.28,96),new THREE.MeshStandardMaterial({color:0x253841,roughness:.27,metalness:.7}));disc.rotation.z=Math.PI/2;disc.position.x=e.interfaceZ;root.add(disc);const post=solid(new THREE.CylinderGeometry(.13,.13,h-r,16));post.position.set(e.interfaceZ,-(h+r)/2,0);root.add(post);const foot=solid(new THREE.BoxGeometry(3,.6,4));foot.position.set(e.interfaceZ,-h-.3,0);root.add(foot);}
@@ -40,9 +40,9 @@ export function makeOpticalElement(e){
   sheet(sheetMaterial(root.userData.maskMap,.5,true),-.12);
   for(const side of[-1,1])for(let j=0;j<12;j++){const pin=solid(new THREE.BoxGeometry(.3,.13,.7),new THREE.MeshStandardMaterial({color:0x647b7e,metalness:.65,roughness:.4}));pin.position.set(-.25,(j-5.5)*h/6,side*(h+.5));root.add(pin);}
  }else if(phase){
-  root.userData.ready=reliefData(e.id).then(buffer=>{
+  root.userData.ready=loadGeometry('assets/elements/'+e.id+'.relief','relief',signal).then(({buffer,normals})=>{
    if(root.userData.disposed)return;const meta=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,0,1024)).split('\0')[0]),g=new THREE.BufferGeometry();
-   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buffer,1024,meta.vertices*3),3));g.setAttribute('transmission',new THREE.BufferAttribute(new Float32Array(buffer,1024+meta.vertices*12,meta.vertices),1));g.setIndex(new THREE.BufferAttribute(new Uint32Array(buffer,1024+meta.vertices*16,meta.indices),1));g.computeVertexNormals();
+   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(buffer,1024,meta.vertices*3),3));g.setAttribute('normal',new THREE.BufferAttribute(normals,3));g.setAttribute('transmission',new THREE.BufferAttribute(new Float32Array(buffer,1024+meta.vertices*12,meta.vertices),1));g.setIndex(new THREE.BufferAttribute(new Uint32Array(buffer,1024+meta.vertices*16,meta.indices),1));
    const mesh=new THREE.Mesh(g,glassMaterial());mesh.layers.set(5);root.add(mesh);root.userData.glassMaterial=mesh.material;
   });
  }else{

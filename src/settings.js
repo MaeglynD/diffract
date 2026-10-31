@@ -10,7 +10,7 @@ function comfortableRange(el){
  el.addEventListener('input',()=>paintRange(el));paintRange(el);
 }
 export function setupSettings(scene,tex,initial='bunny'){
- let current=initial;const options=appearanceFor(initial),adjusted=new Set();
+ let current=initial;const options=appearanceFor(initial);
  // Remove only this application's legacy saved display preferences.
  try{for(const key of Object.keys(localStorage))if(/^optics-appearance-v\d+$/.test(key))localStorage.removeItem(key);}catch{}
  options.density=Math.round(options.density);
@@ -20,7 +20,7 @@ export function setupSettings(scene,tex,initial='bunny'){
  
  document.getElementById('close-settings').addEventListener('click',()=>{open(false);button.focus({preventScroll:true});});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.getElementById('equations').open&&button.getAttribute('aria-expanded')==='true'){open(false);button.focus({preventScroll:true});}});
- function reflect(changed){
+ function reflect(changed,apply=true){
   document.getElementById('phase-reference-setting').hidden=options.display!=='phase';
   document.getElementById('field-sampling-setting').hidden=options.display!=='field';
   document.querySelector('[data-option=display][data-value=phase]').title=options.phaseReference==='relative'?'Phase relative to the incident plane wave':'Instantaneous optical phase';
@@ -31,15 +31,15 @@ export function setupSettings(scene,tex,initial='bunny'){
   document.getElementById('vector-scale-note').textContent=options.vectorScale==='readable'?'A shared local scale reveals weak fields. Directions and relative electric–magnetic lengths are preserved.':'Arrow lengths are proportional to instantaneous field amplitude, with the same scale everywhere.';
   tex(document.getElementById('detector-quantity'),{field:options.planeSampling==='average'?String.raw`E_{y,\mathrm{rms}}/E_0`:String.raw`E_y/E_0`,energy:String.raw`\langle S_z\rangle`,phase:options.phaseReference==='relative'?String.raw`\arg(\widetilde E_y e^{-ikz})`:String.raw`\arg\widetilde E_y-\omega t`}[options.display]);
   document.getElementById('detector-image').setAttribute('aria-label',`${{field:options.planeSampling==='average'?'RMS electric field':'Instantaneous electric field',energy:'Detector intensity',phase:'Optical phase'}[options.display]}. Click to inspect a point.`);
-  app.dataset.palette=options.palette;app.dataset.settings=JSON.stringify(options);scene.applyAppearance(options);
+  app.dataset.palette=options.palette;app.dataset.settings=JSON.stringify(options);if(apply)scene.applyAppearance(options);
  }
  let scheduled=0,pendingKey;
- const save=(changed,continuous=false)=>{if(changed)adjusted.add(changed);if(!continuous){const key=scheduled&&pendingKey!==changed?undefined:changed;cancelAnimationFrame(scheduled);scheduled=0;if(['display','palette','planeSampling','phaseReference'].includes(changed))scene.captureTransition(260).then(()=>reflect(key));else reflect(key);return;}pendingKey=scheduled&&pendingKey!==changed?undefined:changed;if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;reflect(pendingKey);});};
+ const save=(changed,continuous=false)=>{if(!continuous){const key=scheduled&&pendingKey!==changed?undefined:changed;cancelAnimationFrame(scheduled);scheduled=0;reflect(key,false);if(['display','palette','planeSampling','phaseReference'].includes(changed))scene.transitionAppearance(options);else scene.applyAppearance(options);return;}pendingKey=scheduled&&pendingKey!==changed?undefined:changed;if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;reflect(pendingKey);});};
  for(const el of document.querySelectorAll('[data-vector-toggle]'))el.addEventListener('click',()=>{let electric=options.vectors==='both'||options.vectors==='electric',magnetic=options.vectors==='both'||options.vectors==='magnetic';if(el.dataset.vectorToggle==='electric')electric=!electric;else magnetic=!magnetic;options.vectors=electric?(magnetic?'both':'electric'):(magnetic?'magnetic':'none');save('vectors');});
  for(const el of document.querySelectorAll('[data-option]'))el.addEventListener('click',()=>{options[el.dataset.option]=el.dataset.value;save(el.dataset.option);});
  for(const el of panel.querySelectorAll('[data-setting]'))el.addEventListener('input',()=>{const key=el.dataset.setting;options[key]=el.type==='checkbox'?el.checked:Number(el.value);save(key,el.type==='range');});
  for(const el of document.querySelectorAll('input[type=range]'))comfortableRange(el);
- document.getElementById('reset-appearance').addEventListener('click',()=>{adjusted.clear();Object.assign(options,appearanceFor(current));reflect();});
+ document.getElementById('reset-appearance').addEventListener('click',()=>{cancelAnimationFrame(scheduled);scheduled=0;Object.assign(options,appearanceFor(current));reflect(undefined,false);scene.transitionAppearance(options);});
  for(const button of panel.querySelectorAll('[data-camera]'))button.addEventListener('click',()=>scene.resetView(false,button.dataset.camera));
  const tabs=[...panel.querySelectorAll('[role=tab]')];
  let tabChange=0;
@@ -54,7 +54,7 @@ export function setupSettings(scene,tex,initial='bunny'){
  }
 
  for(const tab of tabs){tab.addEventListener('click',()=>selectTab(tab));tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const i=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(i+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;selectTab(tabs[next]);tabs[next].focus();});}
- reflect();return{options,setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},useExperiment(id){current=id;for(const[key,value]of Object.entries(appearanceFor(id)))if(!adjusted.has(key))options[key]=value;reflect();},setPalette(palette){options.palette=palette;adjusted.add('palette');reflect();}};
+ reflect();return{options,setDetectorZoom(value){options.detectorZoom=Math.round(Math.max(1,Math.min(5,value))*10)/10;save('detectorZoom');},useExperiment(id){current=id;cancelAnimationFrame(scheduled);scheduled=0;Object.assign(options,appearanceFor(id));reflect(undefined,false);scene.options={...options};},setPalette(palette){options.palette=palette;save('palette');}};
 }
 export function showElement(e,tex){
  const canvas=document.getElementById('element-preview'),phasePlate=e.kind==='phase'||e.kind==='axicon',ctx=canvas.getContext('2d');canvas.dataset.experiment=e.id;ctx.fillStyle='#9dd8e3';ctx.fillRect(0,0,200,200);let image=maskImages.get(e.id);const draw=()=>{if(canvas.dataset.experiment===e.id)ctx.drawImage(image,0,0,200,200);};if(image?.complete)draw();else{image=new Image();maskImages.set(e.id,image);image.onload=draw;image.src='./assets/masks/'+e.id+'.png';}

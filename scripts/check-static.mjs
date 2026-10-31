@@ -4,6 +4,8 @@ import {createHash} from 'node:crypto';
 import {fieldAssets} from '../dist/src/field-assets.js';
 import {EXPERIMENTS} from '../src/experiments.js';
 import {spectrumAssets} from '../dist/src/spectrum-assets.js';
+import {binaryAssets} from '../dist/src/binary-assets.js';
+import {gunzipSync} from 'node:zlib';
 
 const expected = [...EXPERIMENTS.map(e => e.id), 'double-right'].flatMap(id => [`${id}.bin.gz`, `${id}.preview.bin.gz`]).sort();
 if (JSON.stringify(Object.keys(fieldAssets).sort()) !== JSON.stringify(expected)) throw new Error('The deployed catalogue is missing field volumes.');
@@ -24,3 +26,8 @@ for(const id of [...EXPERIMENTS.map(e=>e.id),'double-right']){
  if(bytes.length!==entry.bytes||createHash('sha256').update(bytes).digest('hex')!==entry.sha256)throw Error(`Invalid compact spectrum: ${id}`);
 }
 console.log(`Verified all ${Object.keys(spectrumAssets).length} content-addressed angular spectra.`);
+for(const [source,entry]of Object.entries(binaryAssets)){
+ const compressed=await readFile(new URL(`../dist/assets/binary/${entry.file}`,import.meta.url)),raw=gunzipSync(compressed),original=await readFile(new URL('../'+source,import.meta.url));
+ if(compressed.length!==entry.bytes||!raw.equals(original)||createHash('sha256').update(raw).digest('hex')!==entry.sha256)throw Error(`Geometry changed during packaging: ${source}`);
+}
+console.log(`Verified ${Object.keys(binaryAssets).length} compressed geometry assets: byte-for-byte identical.`);

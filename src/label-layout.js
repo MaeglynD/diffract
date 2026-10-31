@@ -2,7 +2,8 @@
 export function layoutLabels(items,width,height,preview){
  const used=[],paths=[],compact=width<=650,font=compact?8:10,top=height<=540&&width>=height?92:compact?112:145;
  for(const {el,p} of items){
-  if(getComputedStyle(el).display==='none')continue;
+  // Do not interleave layout reads with per-label writes on every frame.
+  if(width<=900&&['incident-label','object-light-label','reference-light-label'].includes(el.id)){el.hidden=true;continue;}
   const text=el.id==='optic-label'?el.querySelector('#optic-name').textContent:el.textContent;
   const w=Math.min(185,text.length*font*.54+12),h=el.id==='optic-label'?32:18;
   let chosen;
@@ -13,7 +14,7 @@ export function layoutLabels(items,width,height,preview){
    if(used.some(overlap)||instrument&&overlap(instrument))continue;chosen={x,y,r};break;
   }
   if(!chosen){el.hidden=true;continue;}
-  const {x,y,r}=chosen;used.push(r);el.style.width=w+'px';el.style.transform=`translate(${r.x}px,${r.y}px)`;
+  const {x,y,r}=chosen;used.push(r);el.style.width=w+'px';el.style.transform=`translate(${r.x}px,${r.y}px)`;el.dataset.positioned='true';
   if(Math.hypot(x-p.x,y-p.y)>12)paths.push(`M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${x.toFixed(1)} ${y.toFixed(1)}`);
  }
  const root=document.getElementById('label-links');if(!root.firstChild){root.appendChild(document.createElementNS('http://www.w3.org/2000/svg','path'));}root.firstChild.setAttribute('d',paths.join(''));

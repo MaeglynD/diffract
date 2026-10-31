@@ -15,9 +15,15 @@ function setupFromUrl(){const id=location.hash.slice(1);return EXPERIMENTS.some(
 function linkSetup(id,replace=false){if(thumbnail)return;const url=new URL(location.href);url.hash=id;if(url.href!==location.href)history[replace?'replaceState':'pushState'](null,'',url);}
 linkSetup(initial,true);
 const state={id:initial,z:experiment(initial).z,phase:0,playing:!thumbnail,mode:'both',probe:null,sweeping:!thumbnail,sweepDirection:1,slitPhase:0};
-const previews=new Map(),full=new Map(),pending=new Map(),controllers=new Map();let requestedId=null,scene,volume,selection=0,labelDirty=true,probeDirty=true,firstFrame=false,latestDrag=0,lastInteraction=0;
+const previews=new Map(),full=new Map(),pending=new Map(),controllers=new Map();let requestedId=null,scene,volume,selection=0,preparationController,labelDirty=true,probeDirty=true,firstFrame=false,latestDrag=0,lastInteraction=0;
 function tex(element,value,display=false){if(element.dataset.texValue===value)return;element.dataset.texValue=value;katex.render(value,element,{displayMode:display,throwOnError:false,strict:'ignore',trust:false});}
-document.querySelectorAll('[data-tex]').forEach(el=>tex(el,el.dataset.tex,el.dataset.display==='true'));
+document.querySelectorAll('[data-tex]').forEach(el=>{if(!el.closest('#equations'))tex(el,el.dataset.tex,el.dataset.display==='true');});
+const detailsMath=[...$('equations').querySelectorAll('[data-tex]')];let mathWarmup=0;
+function warmDetails(){
+ if(mathWarmup||!detailsMath.length&&!detailsDirty)return;
+ const schedule=window.requestIdleCallback?fn=>requestIdleCallback(fn,{timeout:400}):fn=>setTimeout(fn,24);
+ mathWarmup=schedule(()=>{mathWarmup=0;const el=detailsMath.shift();if(el)tex(el,el.dataset.tex,el.dataset.display==='true');else if(detailsDirty)updateDetails();warmDetails();});
+}
 
 const gallery=$('experiments');
 for(const e of EXPERIMENTS){
@@ -49,31 +55,37 @@ function acquire(id,quality,onProgress=()=>{}){
 }
 
 function markRequest(id,busy){
- for(const button of gallery.children){button.setAttribute('aria-pressed',String(button.dataset.experiment===state.id));button.setAttribute('aria-busy',String(busy&&button.dataset.experiment===id));button.classList.toggle('pending',busy&&button.dataset.experiment===id&&id!==state.id);}
+ for(const button of gallery.children){button.setAttribute('aria-pressed',String(button.dataset.experiment===id));button.setAttribute('aria-busy',String(busy&&button.dataset.experiment===id));button.classList.toggle('pending',busy&&button.dataset.experiment===id);}
  $('app').dataset.requested=id;$('app').dataset.pending=String(busy&&(!volume||id!==state.id));
 }
 function loadProgress(id,value){if(requestedId!==id)return;const button=gallery.querySelector('[data-experiment="'+id+'"]');button?.style.setProperty('--load-progress',String(value));$('loading').style.setProperty('--load-progress',String(value));}
 function commitExperiment(e,data,gpu,prepared){
+ const commitStarted=performance.now();
  const id=e.id;focusSeek=null;scanHold=id==='metamorphosis'?1.8:0;configureFocusStops(id);
  state.id=id;state.z=e.z;state.sweepDirection=1;state.probe=null;state.sweeping=!thumbnail;state.slitPhase=0;updateSweep();
  $('app').dataset.experiment=id;$('app').dataset.pending='false';settings.useExperiment?.(id);
  $('slit-interference').hidden=id!=='double';$('slit-phase').value=0;paintRange($('slit-phase'));$('slit-phase').disabled=true;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=true;tex($('slit-phase-value'),String.raw`\delta=0`);
  $('surface-guide-setting').hidden=!e.object&&!['saturn','metamorphosis'].includes(id);$('surface-guide-label').textContent=id==='saturn'?'Design curves':id==='metamorphosis'?'Image guides':'Reconstruction surface';$('element-opacity-setting').hidden=e.kind==='beams';$('vortex-setting').hidden=!e.vortex;$('focus-emphasis-setting').hidden=!e.focusWindow;
  $('distance').max=e.zMax;$('distance').value=e.z;paintRange($('distance'));labelDirty=true;setProbe(null);detailsDirty=true;document.title=e.name+' · diffract';
- firstFrame=false;showVolume(e,data,gpu,prepared);markRequest(id,false);$('app').dataset.hasScene='true';
+ firstFrame=false;showVolume(e,data,gpu,prepared);markRequest(id,false);
+ warmDetails();
  for(const element of [document.querySelector('.view-modes'),$('distance-value'),$('focus-stops')]){element.getAnimations().forEach(a=>a.cancel());element.animate([{opacity:.25},{opacity:1}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});}
+ $('app').dataset.commitMs=(performance.now()-commitStarted).toFixed(1);
 }
 async function selectExperiment(id,fromHistory=false){
  if(requestedId===id)return;
  const generation=++selection,e=experiment(id);requestedId=id;
+ preparationController?.abort();preparationController=new AbortController();const preparationSignal=preparationController.signal;
  if(!fromHistory)linkSetup(id);
  for(const[key,controller]of controllers)if(!key.startsWith(id+':')){controller.abort();controllers.delete(key);pending.delete(key);}
  $('error').hidden=true;$('error').textContent='';markRequest(id,true);loadProgress(id,0);
  centerSelection(gallery.querySelector('[data-experiment="'+id+'"]'));
- if(state.id===id&&volume?.quality==='full'){markRequest(id,false);loading('');return;}
- $('app').dataset.selectedAt=String(performance.now());loading('Preparing field',!!volume);
+ if(state.id===id&&volume?.quality==='full'){scene.computing=false;markRequest(id,false);loading('');return;}
+ $('app').dataset.selectedAt=String(performance.now());delete $('app').dataset.fullFieldMs;loading('Preparing field',!!volume);scene.computing=true;
+ // Let the pressed state paint before any apparatus construction starts.
+ await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));if(generation!==selection)return;
  let prepared=null,gpu=null;const active=()=>generation===selection;
- const preparing=scene.prepareExperiment(e).then(bundle=>{if(!active()){scene.discardPrepared(bundle);return null;}prepared=bundle;return bundle;});
+ const preparing=scene.prepareExperiment(e,preparationSignal).then(bundle=>{if(!active()){scene.discardPrepared(bundle);return null;}prepared=bundle;return bundle;});
  preparing.catch(()=>{});
  try{
   const data=full.get(id)||await acquire(id,'preview',p=>loadProgress(id,p*.82));
@@ -88,9 +100,9 @@ async function selectExperiment(id,fromHistory=false){
    gpu=await scene.uploadVolume(detailed,active);if(!active()){gpu?.forEach(t=>t.dispose());return;}
    await scene.captureTransition(420);if(!active()){gpu?.forEach(t=>t.dispose());return;}showVolume(e,detailed,gpu);gpu=null;
   }
-  $('app').dataset.fullFieldMs=(performance.now()-Number($('app').dataset.selectedAt)).toFixed(1);
+  scene.computing=false;$('app').dataset.fullFieldMs=(performance.now()-Number($('app').dataset.selectedAt)).toFixed(1);
   if(id==='double')loadSlitPartner(generation);else warmSpectra(id,generation);
- }catch(error){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);if(active()){requestedId=null;markRequest(state.id,false);fail(error);}}
+ }catch(error){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);if(active()){scene.computing=false;requestedId=null;markRequest(state.id,false);fail(error);}}
 }
 async function loadSlitPartner(generation){try{const data=await acquire('double-right','full');if(generation!==selection)return;const gpu=await scene.uploadVolume(data,()=>generation===selection);if(generation!==selection){gpu?.forEach(t=>t.dispose());return;}scene.setAuxiliary(data,gpu);$('slit-phase').disabled=false;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=false;}catch(error){if(generation===selection)fail(error);}}
 function setSlitPhase(value){state.slitPhase=Number(value)/1000*Math.PI;$('slit-phase').value=value;paintRange($('slit-phase'));tex($('slit-phase-value'),String.raw`\delta=${(state.slitPhase/Math.PI).toFixed(2)}\pi`);scene.setSlitPhase(state.slitPhase);probeDirty=true;}
@@ -138,14 +150,15 @@ $('detector-image').addEventListener('dblclick',()=>settings.setDetectorZoom(1))
 function probeFromPointer(e){const r=$('detector-image').getBoundingClientRect(),half=experiment(state.id).half/appearance.detectorZoom;setProbe({x:Math.max(-half,Math.min(half,((e.clientX-r.left)/r.width*2-1)*half)),y:Math.max(-half,Math.min(half,(1-(e.clientY-r.top)/r.height*2)*half))});}
 $('detector-image').addEventListener('pointerdown',e=>{probing=true;e.currentTarget.setPointerCapture(e.pointerId);probeFromPointer(e);});$('detector-image').addEventListener('pointermove',e=>{if(probing)probeFromPointer(e);});$('detector-image').addEventListener('pointerup',()=>probing=false);$('detector-image').addEventListener('pointercancel',()=>probing=false);
 $('detector-image').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const half=experiment(state.id).half/appearance.detectorZoom,p=state.probe||{x:0,y:0},step=half/30;setProbe({x:Math.max(-half,Math.min(half,p.x+(e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0))),y:Math.max(-half,Math.min(half,p.y+(e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0)))});});
-function openDetails(){if(detailsDirty)updateDetails();const dialog=$('equations');dialog.getAnimations().forEach(a=>a.cancel());dialog.showModal();dialog.animate([{opacity:0,transform:'scale(.99)'},{opacity:1,transform:'none'}],{duration:280,easing:'cubic-bezier(.22,1,.36,1)'});}function closeDetails(){const dialog=$('equations');dialog.getAnimations().forEach(a=>a.cancel());dialog.animate([{opacity:1},{opacity:0}],{duration:160,easing:'ease-out'}).finished.then(()=>dialog.close()).catch(()=>{});}$('details').addEventListener('click',openDetails);$('optic-label').addEventListener('click',openDetails);$('close-details').addEventListener('click',closeDetails);$('equations').addEventListener('cancel',event=>{event.preventDefault();closeDetails();});
+function openDetails(){warmDetails();if(detailsDirty)updateDetails();const dialog=$('equations');dialog.getAnimations().forEach(a=>a.cancel());dialog.showModal();dialog.animate([{opacity:0},{opacity:1}],{duration:220,easing:'ease-out'});}function closeDetails(){const dialog=$('equations');dialog.getAnimations().forEach(a=>a.cancel());dialog.animate([{opacity:1},{opacity:0}],{duration:160,easing:'ease-out'}).finished.then(()=>dialog.close()).catch(()=>{});}$('details').addEventListener('click',openDetails);$('optic-label').addEventListener('click',openDetails);$('close-details').addEventListener('click',closeDetails);$('equations').addEventListener('cancel',event=>{event.preventDefault();closeDetails();});
 $('equations').addEventListener('click',e=>{if(e.target!==$('equations'))return;const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDetails();});
 $('phase').addEventListener('input',e=>{state.phase=Number(e.target.value)/1000*TAU;state.playing=false;updatePlay();probeDirty=true;});
 document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select,button,[tabindex]')||$('equations').open)return;if(e.code==='Space'){e.preventDefault();toggleSweep();}if(e.key.toLowerCase()==='r')scene?.resetView(false);const item=EXPERIMENTS[Number(e.key)-1];if(item)selectExperiment(item.id);});
 document.addEventListener('keydown',e=>{if(!thumbnail||!['ArrowRight','ArrowLeft'].includes(e.key))return;e.preventDefault();const index=EXPERIMENTS.findIndex(x=>x.id===state.id),next=(index+(e.key==='ArrowRight'?1:-1)+EXPERIMENTS.length)%EXPERIMENTS.length;selectExperiment(EXPERIMENTS[next].id);});
 window.addEventListener('hashchange',()=>{const id=setupFromUrl();linkSetup(id,true);if(id!==requestedId)selectExperiment(id,true);});
-let last=performance.now(),lastProbe=0,lastMetric=0,lastPhaseLabel=0,lastDistanceLabel=0,frameTimes=[];
+let last=performance.now(),lastRender=0,lastProbe=0,lastMetric=0,lastPhaseLabel=0,lastDistanceLabel=0,frameTimes=[];
 function animate(now){
+ requestAnimationFrame(animate);
  const elapsed=now-last,dt=Math.min(.08,elapsed/1000);last=now;
  if(!document.hidden&&scene){
   if(focusSeek&&volume){const t=Math.min(1,(now-focusSeek.start)/550),ease=t*t*(3-2*t);setDistance(focusSeek.from+(focusSeek.to-focusSeek.from)*ease,false);if(t===1)focusSeek=null;}
@@ -158,14 +171,17 @@ function animate(now){
   if(state.playing)state.phase=(state.phase+TAU*dt*appearance.speed)%TAU;
   if(labelDirty&&now-lastDistanceLabel>90){updateDistanceLabel();lastDistanceLabel=now;}if(state.probe&&(probeDirty||now-lastProbe>130)){updateProbe();lastProbe=now;}
   if($('settings-toggle').getAttribute('aria-expanded')==='true'&&!$('vector-settings').hidden){$('phase').value=Math.round(state.phase/TAU*1000);paintRange($('phase'));if(now-lastPhaseLabel>125){tex($('phase-value'),String.raw`\omega t=${(state.phase/Math.PI).toFixed(2)}\pi`);lastPhaseLabel=now;}}
-  scene.render(state.phase,now);
+  // Leave GPU headroom for input/compositing, without reducing spatial quality.
+  const frameBudget=Math.max(scene.computing?15.5:7.5,(scene.gpuFrameMs||0)*1.25);
+  if(now-lastRender<frameBudget)return;const renderInterval=now-lastRender;lastRender=now;scene.render(state.phase,now);
   if(volume&&!firstFrame){firstFrame=true;$('app').dataset.firstFieldMs=(performance.now()-Number($('app').dataset.selectedAt||started)).toFixed(1);}
   if(latestDrag){$('app').dataset.detectorLatencyMs=(performance.now()-latestDrag).toFixed(2);$('app').dataset.cameraAfterInput=scene.camera.position.toArray().join(',');latestDrag=0;}
-  frameTimes.push(elapsed);if(frameTimes.length>60)frameTimes.shift();
+  frameTimes.push(renderInterval);if(frameTimes.length>60)frameTimes.shift();
   if(now-lastMetric>1000){const sorted=[...frameTimes].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];$('app').dataset.frameMs=median.toFixed(1);lastMetric=now;}
  }
- requestAnimationFrame(animate);
 }
+
+if(new URLSearchParams(location.search).has('profile')){const stalls=[];new PerformanceObserver(list=>{for(const item of list.getEntries())stalls.push({at:Math.round(item.startTime),ms:Math.round(item.duration)});$('app').dataset.longTasks=JSON.stringify(stalls.slice(-50));}).observe({type:'longtask',buffered:true});}
 document.addEventListener('visibilitychange',()=>{last=performance.now();});
 updatePlay();updateDistanceLabel();tex($('phase-value'),String.raw`\omega t=0`);if(scene){selectExperiment(initial);requestAnimationFrame(animate);}
 

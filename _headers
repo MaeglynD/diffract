@@ -18,3 +18,7 @@
 /assets/spectra/*
   Content-Type: application/octet-stream
   Cache-Control: public, max-age=31536000, immutable
+
+/assets/binary/*
+  Content-Type: application/octet-stream
+  Cache-Control: public, max-age=31536000, immutable

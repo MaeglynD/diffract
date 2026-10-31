@@ -71,6 +71,8 @@ The server binds to loopback. Set the `PORT` environment variable to use a diffe
 
 Each setup normally downloads **190–392 KiB** of angular-spectrum data. A worker reconstructs the same complex electric and magnetic fields locally with a GPU inverse FFT, first at preview resolution and then on the full original grid. No retained modes are discarded. Nearby spectra are prefetched, generated volumes use a bounded memory cache, and leaving a setup cancels its work. The approximately 2 GiB collection of reference volumes remains available as a compatibility fallback.
 
+Optical reliefs and the bunny mesh are compressed losslessly, with surface normals calculated in a separate worker. Texture uploads and shader preparation happen before a setup appears. The scene and its controls change together; every setup restores its curated display defaults. The catalogue keeps visible choices in place and gently reveals choices beyond its edges.
+
 ### Deploy to Cloudflare
 
 The production build is entirely static. Compact angular spectra use content-addressed URLs and immutable caching. The original compressed fields are also packaged into files of at most 16 MiB for browsers without floating-point worker WebGL; this fallback is byte-for-byte identical to the reference data. There is no server-side Worker code, database, or R2 bucket.

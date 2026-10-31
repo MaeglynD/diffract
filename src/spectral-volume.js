@@ -57,14 +57,22 @@ export class SpectralVolume {
   this.programs=[init,butterfly,crop].map(fragment=>{
    const program=gl.createProgram();for(const[type,source]of[[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]){const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));gl.attachShader(program,shader);gl.deleteShader(shader);}gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));return program;
   });
-  gl.bindVertexArray(gl.createVertexArray());this.resources=[];this.n=0;
+  this.locations=this.programs.map(p=>new Map());gl.bindVertexArray(gl.createVertexArray());this.resources=[];this.n=0;
  }
  texture(width,height,data=null,integer=false){const gl=this.gl,t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,integer?gl.RGBA32UI:gl.RGBA32F,width,height,0,integer?gl.RGBA_INTEGER:gl.RGBA,integer?gl.UNSIGNED_INT:gl.FLOAT,data);return t;}
  target(width,height,integer=false){const gl=this.gl,f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);const textures=Array.from({length:3},(_,i)=>{const t=this.texture(width,height,null,integer);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0+i,gl.TEXTURE_2D,t,0);return t;});gl.drawBuffers([gl.COLOR_ATTACHMENT0,gl.COLOR_ATTACHMENT1,gl.COLOR_ATTACHMENT2]);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('Field framebuffer unavailable');return{f,textures,width,height};}
  release(target){if(!target)return;target.textures.forEach(t=>this.gl.deleteTexture(t));this.gl.deleteFramebuffer(target.f);}
  use(index,target,inputs,values){const gl=this.gl,p=this.programs[index];gl.useProgram(p);gl.bindFramebuffer(gl.FRAMEBUFFER,target.f);gl.viewport(0,values.rowOffset||0,target.width,target.sliceHeight||target.height);
-  inputs.forEach((t,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(gl.getUniformLocation(p,index===0?'source':'t'+i),i);});
-  for(const[key,value]of Object.entries(values)){const loc=gl.getUniformLocation(p,key);if(Array.isArray(value))gl.uniform2fv(loc,value);else if(['span','axis','rowOffset'].includes(key)||key==='n'&&index===0)gl.uniform1i(loc,value);else gl.uniform1f(loc,value);}gl.drawArrays(gl.TRIANGLES,0,3);
+  const locations=this.locations[index],location=key=>{if(!locations.has(key))locations.set(key,gl.getUniformLocation(p,key));return locations.get(key);};
+  inputs.forEach((t,i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,t);gl.uniform1i(location(index===0?'source':'t'+i),i);});
+  for(const[key,value]of Object.entries(values)){const loc=location(key);if(Array.isArray(value))gl.uniform2fv(loc,value);else if(['span','axis','rowOffset'].includes(key)||key==='n'&&index===0)gl.uniform1i(loc,value);else gl.uniform1f(loc,value);}gl.drawArrays(gl.TRIANGLES,0,3);
+ }
+ async readBatch(target,pixels,rows,layers,signal,pack){
+  const gl=this.gl,bytes=pixels.byteLength;gl.bindBuffer(gl.PIXEL_PACK_BUFFER,pack);
+  for(let c=0;c<3;c++){gl.readBuffer(gl.COLOR_ATTACHMENT0+c);gl.readPixels(0,0,target.width,rows*layers,gl.RGBA_INTEGER,gl.UNSIGNED_INT,c*bytes);}
+  const fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush();
+  try{for(;;){signal?.throwIfAborted();const status=gl.clientWaitSync(fence,0,0);if(status===gl.WAIT_FAILED)throw Error('Field readback failed');if(status!==gl.TIMEOUT_EXPIRED)break;await new Promise(resolve=>setTimeout(resolve,1));}}
+  finally{gl.deleteSync(fence);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);}
  }
  async generate(spectrum,quality='full',signal,progress=()=>{}){
   signal?.throwIfAborted();
@@ -75,16 +83,18 @@ export class SpectralVolume {
    const at=(((y+n)%n)*n+(x+n)%n)*4,p=(s*spectrum.side*spectrum.side+(y+spectrum.radius)*spectrum.side+x+spectrum.radius)*2,scale=(n/meta.grid.n)**2;data[at]=spectrum.data[p]*scale;data[at+1]=spectrum.data[p+1]*scale;data[at+2]=Math.sqrt(1-(x*x+y*y)/(length*length))-1;
   }return this.texture(n,n,data);});
   const batch=4,rows=Math.ceil(ny/2),result=this.target(nx,rows*batch,true),pixels=new Uint32Array(result.width*result.height*4),halves=new Uint16Array(pixels.buffer),readStride=nx*rows*8,cut=meta.interfaceZ?Math.round(meta.interfaceZ/meta.zMax*(nz-2)):-1;result.sliceHeight=rows;
+  const pack=gl.createBuffer();gl.bindBuffer(gl.PIXEL_PACK_BUFFER,pack);gl.bufferData(gl.PIXEL_PACK_BUFFER,pixels.byteLength*3,gl.STREAM_READ);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
   try{for(let start=0;start<nz;start+=batch){const layers=Math.min(batch,nz-start);for(let iz=start;iz<start+layers;iz++){
    signal?.throwIfAborted();const z=cut<0?iz*meta.zMax/(nz-1):(iz<=cut?iz:iz-1)*meta.zMax/(nz-2),after=cut>=0&&iz>cut;let current=0;
    this.use(0,this.resources[current],[sources[after?1:0]],{n,length,z:after?z-meta.interfaceZ:iz===cut?z-1e-7:z});
    for(let axis=0;axis<2;axis++)for(let span=1;span<n;span*=2){this.use(1,this.resources[1-current],this.resources[current].textures,{axis,span});current=1-current;}
    this.use(2,result,this.resources[current].textures,{n,length,halfWidth:meta.half,dimensions:[nx,ny],rowOffset:(iz-start)*rows});
    }
-   for(let c=0;c<3;c++){gl.readBuffer(gl.COLOR_ATTACHMENT0+c);gl.readPixels(0,0,result.width,rows*layers,gl.RGBA_INTEGER,gl.UNSIGNED_INT,pixels);for(let layer=0;layer<layers;layer++)out[c].set(halves.subarray(layer*readStride,layer*readStride+count),(start+layer)*count);}
+   await this.readBatch(result,pixels,rows,layers,signal,pack);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,pack);
+   for(let c=0;c<3;c++){gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,c*pixels.byteLength,pixels);for(let layer=0;layer<layers;layer++)out[c].set(halves.subarray(layer*readStride,layer*readStride+count),(start+layer)*count);}gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
    progress((start+layers)/nz);await new Promise(resolve=>setTimeout(resolve,0));
   }
   if(gl.getError()!==gl.NO_ERROR)throw Error('GPU field reconstruction failed');return buffer;
-  }finally{sources.forEach(t=>gl.deleteTexture(t));this.release(result);}
+  }finally{gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);gl.deleteBuffer(pack);sources.forEach(t=>gl.deleteTexture(t));this.release(result);}
  }
 }
