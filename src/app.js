@@ -3,6 +3,7 @@ import katex from '../vendor/katex/katex.mjs';
 import { EXPERIMENTS,experiment } from './experiments.js';
 import { loadVolume,sampleField,normalizedFlux,mixSlitPhase } from './volume-data.js';
 import { FieldScene } from './scene3d.js';
+import {SETUP_REFERENCES} from './setup-references.js';
 import {appearanceFor} from './display-presets.js';
 import {setupThemeCycle} from './themes.js';
 import {setupSettings,showElement,paintRange} from './settings.js';
@@ -127,7 +128,7 @@ function configureInteraction(e){const c=e.interaction,kind=c?.kind;$('experimen
  const input=$('experiment-parameter');if(kind==='parameter'){const sign=c.sliderSign??1;input.min=sign>0?c.min:-c.max;input.max=sign>0?c.max:-c.min;input.step=c.step;$('experiment-control-label').textContent=c.label;input.setAttribute('aria-label',c.label);setParameter(c.initial,false);}else if(kind==='cycle'){input.min=0;input.max=2*Math.PI;input.step=.005;$('experiment-control-label').textContent='Optical cycle';input.setAttribute('aria-label','Optical cycle');}
  if(kind==='comparison'){
   const group=$('comparison-control');group.setAttribute('aria-label',c.label);
-  for(const i of e.id==='coronagraph'?[0,1]:[1,0])group.append(group.querySelector('[data-contrast="'+i+'"]'));
+  for(const i of e.id==='phase-microscope'?[1,0]:[0,1])group.append(group.querySelector('[data-contrast="'+i+'"]'));
  }
  for(const b of document.querySelectorAll('[data-contrast]')){if(kind==='comparison')b.textContent=c.choices[Number(b.dataset.contrast)];b.disabled=true;b.setAttribute('aria-pressed',String(b.dataset.contrast==='0'));}
  $('detector-handle').title=e.id==='michelson'?'Move delay mirror':e.id==='grin'?'Move launch position':'Move detector';$('detector-handle').setAttribute('aria-label',e.id==='michelson'?'Move delay mirror':e.id==='grin'?'Move launch position':'Drag detector');scene.updatePreviewRect();
@@ -153,7 +154,16 @@ function updateProbe(){
  tex($('probe-magnetic'),String.raw`\frac{c\mathbf B}{E_0}=\bigl(${number(real(4))},\,${number(real(6))},\,${number(real(8))}\bigr)`);
  tex($('probe-flux'),String.raw`\langle S_z\rangle/I_0=${number(normalizedFlux(probeSample))}`);probeDirty=false;
 }
-let detailsDirty=true;function updateDetails(){detailsDirty=false;const e=experiment(state.id);showElement(e,tex);$('equation-title').textContent=e.name;$('experiment-description').textContent=e.description;tex($('boundary-equation'),e.formula,true);tex($('parameter-equation'),e.parameters,true);$('spectral-model-info').hidden=!!e.analytic;$('native-model-info').hidden=!e.analytic||!!e.bench;$('bench-model-info').hidden=!e.bench;}
+function updateApparatusReference(id){
+ const {note,links}=SETUP_REFERENCES[id];
+ $('reference-note').textContent=note;
+ $('reference-links').replaceChildren(...links.map(([label,url])=>{
+  const link=document.createElement('a');
+  link.textContent=label+' ↗';link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+  return link;
+ }));
+}
+let detailsDirty=true;function updateDetails(){detailsDirty=false;const e=experiment(state.id);showElement(e,tex);updateApparatusReference(e.id);$('equation-title').textContent=e.name;$('experiment-description').textContent=e.description;tex($('boundary-equation'),e.formula,true);tex($('parameter-equation'),e.parameters,true);$('spectral-model-info').hidden=!!e.analytic;$('native-model-info').hidden=!e.analytic||!!e.bench;$('bench-model-info').hidden=!e.bench;}
 function updatePlay(){const label=state.playing?'Pause optical cycle':'Play optical cycle';$('play').setAttribute('aria-label',label);$('play').title=label;$('play-path').setAttribute('d',state.playing?'M7 4v12m6-12v12':'M6 3l10 7-10 7z');}
 function togglePlay(){state.playing=!state.playing;updatePlay();updateSweep();}
 $('play').addEventListener('click',togglePlay);$('reset').addEventListener('click',()=>scene?.resetView(false));

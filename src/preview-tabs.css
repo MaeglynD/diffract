@@ -1,3 +1,6 @@
+#detector-image{position:relative}
+#camera-marks{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:#f1d8a2;stroke-width:1.1;opacity:.73}
+#app:not([data-presented=true]) #camera-marks{visibility:hidden}
 /* Quiet tabs share the observation window's edge, without a second toolbar. */
 .detector-window{position:relative;border-radius:5px;background:transparent;box-shadow:0 0 0 1px #a7c6ce20}
 .detector-window .view-modes{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:0;padding:0;background:#030b10c9;border:0;border-radius:5px 5px 0 0;overflow:hidden}

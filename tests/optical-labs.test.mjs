@@ -2,7 +2,54 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {acousticModel,drumModel,soundWeights,DRUM,drumHeight,SOUND} from '../src/resonant-instruments.js';
 import {benchPlane,prepareSpectralBench} from '../src/spectral-bench.js';
+import {SCATTER,LENSLETS} from '../src/wavefront-benches.js';
+import {EXPERIMENTS} from '../src/experiments.js';
+import {SETUP_REFERENCES} from '../src/setup-references.js';
 const k=2*Math.PI;
+
+function cameraObservations(id,z,n,length){
+ const model=prepareSpectralBench(id,n,length),diff=prepareSpectralBench(id+'-bright',n,length);
+ const initial=benchPlane(model,z),change=benchPlane(diff,z);
+ return [0,1].map(mix=>(x,y)=>{
+  const p=(model.n/2+Math.round(y*model.n/model.length))*model.n+model.n/2+Math.round(x*model.n/model.length);
+  let flux=0;
+  for(const key of ['re','im'])flux-=(initial[0][key][p]+mix*change[0][key][p])*(initial[2][key][p]+mix*change[2][key][p]);
+  return flux;
+ });
+}
+
+test('phase-only control focuses speckle at the designated pixel, including in a wider computational window',()=>{
+ const {camera,targetX,targetY}=SCATTER;
+ const cameras=cameraObservations('speckle-focus',camera),wide=cameraObservations('speckle-focus',camera,256,64);
+ const [flat,focused]=cameras.map(read=>read(targetX,targetY));
+ assert.ok(focused>20*flat);
+ for(let j=-36;j<=36;j++)for(let i=-36;i<=36;i++)assert.ok(cameras[1](i/4,j/4)<=focused);
+ for(let state=0;state<2;state++)assert.ok(Math.abs(wide[state](targetX,targetY)/cameras[state](targetX,targetY)-1)<.035);
+});
+
+test('Shack–Hartmann spot displacements resolve the sign and size of the incident wavefront slope',()=>{
+ const [flat,astigmatic]=cameraObservations('hartmann',LENSLETS.arrayZ+LENSLETS.f);
+ function localPeak(read,x,y){
+  let max=-Infinity,at;
+  for(let dy=-2.75;dy<=2.75;dy+=.25)for(let dx=-2.75;dx<=2.75;dx+=.25){
+   const v=read(x+dx,y+dy);if(v>max){max=v;at=[dx,dy];}
+  }return at;
+ }
+ for(const x of [-12,-6,0,6,12])for(const y of [-12,-6,0,6,12]){
+  const [u,v]=localPeak(flat,x,y),[s,t]=localPeak(astigmatic,x,y);
+  assert.ok(Math.abs(u)<=.25 && Math.abs(v)<=.25);
+  assert.ok(Math.abs(s-u-LENSLETS.f*LENSLETS.curvature*x)<.55);
+  assert.ok(Math.abs(t-v+LENSLETS.f*LENSLETS.curvature*y)<.55);
+ }
+});
+
+test('every selectable setup has a physical comparison with a labelled source',()=>{
+ assert.deepEqual(Object.keys(SETUP_REFERENCES).sort(),EXPERIMENTS.map(e=>e.id).sort());
+ for(const {note,links} of Object.values(SETUP_REFERENCES)){
+  assert.ok(note && links.length);
+  for(const [label,url] of links)assert.ok(label && new URL(url).protocol==='https:');
+ }
+});
 
 test('the acoustic drive extinguishes the zero order without extinguishing the incident sheet',()=>{
  const root=2.4048255577,w=soundWeights(root);

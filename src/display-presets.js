@@ -3,6 +3,8 @@ export const DEFAULT_APPEARANCE=Object.freeze({display:'energy',planeSampling:'i
 // Display-only starting points. Field amplitudes, propagation and probe values
 // are unchanged. Every new experiment restores its complete curated defaults.
 const LOOKS={
+ 'speckle-focus':{display:'energy',opacity:.34,threshold:.023,volumeContrast:1.4,exposure:1.16,detectorExposure:'fixed',detectorZoom:1.2,maskOpacity:.62,axes:false,incident:false},
+ hartmann:{focusEmphasis:true,display:'energy',opacity:.38,threshold:.023,volumeContrast:1.55,exposure:1.12,detectorExposure:'fixed',detectorZoom:1.06,maskOpacity:.56,axes:false,incident:false},
  coronagraph:{display:'energy',opacity:.42,threshold:.008,detectorExposure:'fixed',detectorZoom:1.28,maskOpacity:.36,detectorOpacity:.72,incident:false,axes:false,exposure:1.2},
  'sound-cell':{display:'energy',opacity:.52,threshold:.02,volumeContrast:1.35,detectorExposure:'fixed',maskOpacity:.48,detectorOpacity:.5,incident:false,axes:false,exposure:1.22,gain:.45},
  'light-billiard':{display:'phase',phaseReference:'instantaneous',opacity:2.3,threshold:.018,volumeContrast:1.1,detectorExposure:'fixed',maskOpacity:.42,detector:false,incident:false,axes:false,exposure:1.32,speed:.13,gain:.14},

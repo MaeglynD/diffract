@@ -61,12 +61,17 @@ export function newApparatus(e,root,{pane,box,solid,dark,rim,stand,label}){
   for(let i=0;i<3;i++){
    const p=corners[i],q=corners[(i+1)%3],mid=p.clone().lerp(q,.5),dir=q.clone().sub(p);
    // The polished upper edges locate the walls; the walls are cut away for inspection.
-   const wall=pane(root,new THREE.BoxGeometry(a,2*h,.045),mid,0xa7c8c9);wall.rotation.y=-Math.atan2(dir.z,dir.x);
+   const wall=add(new THREE.BoxGeometry(a,2*h,.065),trim,mid);wall.rotation.y=-Math.atan2(dir.z,dir.x);
    for(const y of[-h,h])rod(p.clone().setY(y),q.clone().setY(y),.035,trim);
    rod(p.clone().setY(-h-.26),p.clone().setY(h+.065),.092,trim);
    const cap=add(new THREE.CylinderGeometry(.073,.073,.026,18),dark(),p.clone().setY(h+.08));
    box(root,[.1,.008,.018],cap.position.clone().add(V(0,.016,0)).toArray(),trim);
   }
-  label('Mirror cavity',[b+.4,h+.34,-a*.36]);
+  // The chamber is normally closed. A coaxial port under the conducting floor
+  // shows how a microwave probe reaches the enclosed field in the lab.
+  const feed=corners[0].clone().lerp(corners[1],.35);feed.z*=.72;
+  rod(feed.clone().setY(-h-.42),feed.clone().setY(-h+.09),.035,trim);
+  rod(feed.clone().setY(-h-.42),feed.clone().setY(-h-.29),.095,dark());
+  label('Microwave cavity · lid removed',[b+.4,h+.34,-a*.36]);
  }
 }

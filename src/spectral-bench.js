@@ -2,6 +2,7 @@ import {fft2,modeVector,TAU as K} from './physics.js';
 import {HEADER_BYTES,fromHalf,toHalf} from './volume-data.js';
 import {SpectralVolume} from './spectral-volume.js';
 import {CORONA} from './lab-experiments.js';
+import {wavefrontRegions} from './wavefront-benches.js';
 
 export const MICROSCOPE={f:20,aperture:10,dot:.85};
 export const ETALON={a:4,b:12,R:.88};
@@ -13,8 +14,15 @@ function advance(re,im,n,length,dz){const r=re.slice(),t=im.slice();for(let j=0;
 // The etalon's retained spectrum occupies only |m| < 21 in a 32λ window.
 // A 128 transform represents those same modes exactly, at the output's 0.25λ
 // spacing; a 256 transform only oversamples an identical band-limited field.
-export function prepareSpectralBench(id,n=id.startsWith('phase-microscope')?256:128,coronaLength=32){
+export function prepareSpectralBench(id,n=/^(phase-microscope|hartmann)/.test(id)?256:128,coronaLength=32){
  const difference=id.endsWith('-bright');id=id.replace('-bright','');
+ if(id==='hartmann'||id==='speckle-focus'){
+  const length=id==='hartmann'?2*coronaLength:coronaLength;
+  const grid={n,length,advance,bandlimit};
+  const regions=wavefrontRegions(id,difference,grid);
+  if(difference)subtractRegions(regions,wavefrontRegions(id,false,grid));
+  return {n,length,regions};
+ }
  const length=id==='phase-microscope'?64:id==='coronagraph'?coronaLength:32,size=n*n,regions=[];
  let re=new Float64Array(size),im=new Float64Array(size);
  for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=(i-n/2)*length/n,y=(j-n/2)*length/n,p=j*n+i;
@@ -50,8 +58,11 @@ export function prepareSpectralBench(id,n=id.startsWith('phase-microscope')?256:
    }region(z,fR,fI,bR,bI);
   }
  }
- if(difference){const base=prepareSpectralBench(id,n,coronaLength);for(let r=0;r<regions.length;r++)for(let p=0;p<regions[r].data.length;p++)regions[r].data[p]-=base.regions[r].data[p];}
+ if(difference)subtractRegions(regions,prepareSpectralBench(id,n,coronaLength).regions);
  return{n,length,regions};
+}
+function subtractRegions(regions,base){
+ for(const [i,region] of regions.entries())for(let p=0;p<region.data.length;p++)region.data[p]-=base[i].data[p];
 }
 function circlePixel(x,y,r,dx){
  const d=Math.hypot(x,y);if(d<=r-.71*dx)return 1;if(d>=r+.71*dx)return 0;let inside=0;
@@ -81,7 +92,7 @@ async function generateSpectralBenchGpu(e,signal,progress=()=>{}){
   if(gl.getError()!==gl.NO_ERROR)throw Error('Optical-bench GPU reconstruction failed');
   const lookup=Float32Array.from({length:65536},(_,i)=>fromHalf(i)),peaks=[];let maxE=0,maxFlux=0;
   for(let iz=0;iz<nz;iz++){let peak=0;for(let p=iz*count;p<(iz+1)*count;p+=4){let E=0,B=0;for(let c=0;c<4;c++){E+=lookup[out[0][p+c]]**2;B+=lookup[out[1][p+c]]**2;}B+=lookup[out[2][p]]**2+lookup[out[2][p+1]]**2;maxE=Math.max(maxE,Math.sqrt(E));const value=e.energyDensity?(E+B)*.5:-(lookup[out[0][p]]*lookup[out[1][p]]+lookup[out[0][p+1]]*lookup[out[1][p+1]]);peak=Math.max(peak,value);}peaks.push(Number(peak.toPrecision(5)));maxFlux=Math.max(maxFlux,peak);if(iz%12===0){signal?.throwIfAborted();await new Promise(r=>setTimeout(r,0));}}
-  const meta={version:2,id:e.id,quality:'full',analytic:true,spectralBench:true,nx,ny,nz,half:e.half,zMax:e.zMax,maxE,maxFlux,peaks,viewHeight:e.half,energyDensity:!!e.energyDensity};const header=new TextEncoder().encode(JSON.stringify(meta));if(header.length>=HEADER_BYTES)throw Error('Bench header exceeds format');new Uint8Array(buffer,0,header.length).set(header);progress(1);return{buffer};
+  const meta={version:2,id:e.id,quality:'full',analytic:true,spectralBench:true,commands:model.regions[0].commands,nx,ny,nz,half:e.half,zMax:e.zMax,maxE,maxFlux,peaks,viewHeight:e.half,energyDensity:!!e.energyDensity};const header=new TextEncoder().encode(JSON.stringify(meta));if(header.length>=HEADER_BYTES)throw Error('Bench header exceeds format');new Uint8Array(buffer,0,header.length).set(header);progress(1);return{buffer};
  }finally{gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);gl.deleteBuffer(pack);sources.forEach(t=>gl.deleteTexture(t));gpu.release(result);}
 }
 
@@ -97,7 +108,7 @@ export async function generateSpectralBenchCpu(e,signal,progress=()=>{}){
   for(let c=0;c<5;c++){const r=f[c].re[p],s=f[c].im[p],component=c*2;out[Math.floor(component/4)][at+component%4]=toHalf(r);out[Math.floor(component/4)][at+component%4+1]=toHalf(s);if(c<2)E+=r*r+s*s;else B+=r*r+s*s;}
   const flux=-(f[0].re[p]*f[2].re[p]+f[0].im[p]*f[2].im[p]);out[2][at+2]=toHalf(E);out[2][at+3]=toHalf(flux);maxE=Math.max(maxE,Math.sqrt(E));peak=Math.max(peak,e.energyDensity?(E+B)*.5:flux);
  }peaks.push(Number(peak.toPrecision(5)));maxFlux=Math.max(maxFlux,peak);progress((iz+1)/nz);await new Promise(r=>setTimeout(r,0));}
- const meta={version:2,id:e.id,quality:'full',analytic:true,spectralBench:true,nx,ny,nz,half:e.half,zMax:e.zMax,maxE,maxFlux,peaks,viewHeight:e.half,energyDensity:!!e.energyDensity};const bytes=new TextEncoder().encode(JSON.stringify(meta));if(bytes.length>=HEADER_BYTES)throw Error('Bench header exceeds format');new Uint8Array(buffer,0,bytes.length).set(bytes);return{buffer};
+ const meta={version:2,id:e.id,quality:'full',analytic:true,spectralBench:true,commands:model.regions[0].commands,nx,ny,nz,half:e.half,zMax:e.zMax,maxE,maxFlux,peaks,viewHeight:e.half,energyDensity:!!e.energyDensity};const bytes=new TextEncoder().encode(JSON.stringify(meta));if(bytes.length>=HEADER_BYTES)throw Error('Bench header exceeds format');new Uint8Array(buffer,0,bytes.length).set(bytes);return{buffer};
 }
 
 // Independent CPU reference used by numerical tests and thumbnail generation.

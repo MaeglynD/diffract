@@ -2,6 +2,7 @@ import {writeFile} from 'node:fs/promises';
 import {acousticModel,drumModel,DRUM,drumHeight} from '../src/resonant-instruments.js';
 import {prepareSpectralBench,benchPlane} from '../src/spectral-bench.js';
 import {color,png} from './preview-raster.mjs';
+import {SCATTER,LENSLETS} from '../src/wavefront-benches.js';
 const line=(d,stroke='#94bac7',width=1.4)=>`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linejoin="round"/>`;
 const im=(href,x,y,w,h)=>`<image href="${href}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none"/>`;
 async function write(id,body){await writeFile(new URL('../assets/previews/'+id+'.svg',import.meta.url),`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="184" viewBox="0 0 320 184">${body}</svg>`);}
@@ -14,6 +15,31 @@ for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=(2*i/(n-1)-1)*(DRUM.side/2+.12)
  const u=Math.min(1,Math.hypot(f[0],f[1])),phase=Math.atan2(f[1],f[0]),p=(j*n+i)*4;
  for(let c=0;c<3;c++)pix[p+c]=18+205*u*(.55+.43*Math.cos(phase+c*2*Math.PI/3));pix[p+3]=Math.abs(x)+(z-DRUM.base)/Math.sqrt(3)<=DRUM.side/2?255:0;}
 const tri=png(n,n,pix);
+// Camera pairs show two observations of the same hardware.
+for (const [id,z,half] of [['hartmann',LENSLETS.arrayZ+LENSLETS.f,16],['speckle-focus',SCATTER.camera,10]]) {
+  const model=prepareSpectralBench(id), alternate=prepareSpectralBench(id+'-bright');
+  const base=benchPlane(model,z), difference=benchPlane(alternate,z);
+  const size=112, first=new Float32Array(size*size), second=new Float32Array(size*size);
+  for(let j=0;j<size;j++)for(let i=0;i<size;i++){
+    const x=(2*i/(size-1)-1)*half, y=(1-2*j/(size-1))*half;
+    const p=(model.n/2+Math.round(y*model.n/model.length))*model.n+model.n/2+Math.round(x*model.n/model.length);
+    for(const [mix,samples] of [[0,first],[1,second]]){
+      let flux=0;
+      for(const key of ['re','im'])flux-=(base[0][key][p]+mix*difference[0][key][p])*(base[2][key][p]+mix*difference[2][key][p]);
+      samples[j*size+i]=Math.sqrt(Math.max(0,flux));
+    }
+  }
+  const tile=(samples,x,y)=>im(color(samples,size,size),x,y,103,103)+line('M'+x+' '+y+'h103v103h-103z','#3b515b',1);
+  let optic='';
+  if(id==='hartmann'){
+    for(let iy=0;iy<5;iy++)for(let ix=0;ix<5;ix++)
+      optic+='<circle cx="'+(7+14*ix)+'" cy="'+(7+14*iy)+'" r="6.6" fill="#7994a04a" stroke="#87acba" stroke-width=".85"/>';
+  }else{
+    for(let iy=0;iy<8;iy++)for(let ix=0;ix<8;ix++)
+      optic+='<rect x="'+ix*9+'" y="'+iy*9+'" width="8.4" height="8.4" fill="hsl(193 23% '+(30+16*Math.cos(alternate.regions[0].commands[8*iy+ix]))+'%)"/>';
+  }
+  await write(id,'<g transform="matrix(.75 -.14 .15 .95 6 60)">'+optic+'</g>'+tile(first,86,50)+tile(second,202,31));
+}
 await write('light-billiard',`<g transform="matrix(1 -.04 .25 .64 39 37)">${im(tri,0,0,206,167)}${line('M103 0 4 167h198z','#a6a397',2.3)}${line('M4 167v8h198v-8M4 175 103 8l99 167','#55717d',1.4)}</g>`);
 const model=prepareSpectralBench('coronagraph'),n2=104,values=new Float32Array(n2*n2),plane=benchPlane(model,55.5);
 for(let j=0;j<n2;j++)for(let i=0;i<n2;i++){const p=(64+Math.round((j/(n2-1)*2-1)*33))*128+64+Math.round((i/(n2-1)*2-1)*33);values[j*n2+i]=Math.sqrt(Math.max(0,-(plane[0].re[p]*plane[2].re[p]+plane[0].im[p]*plane[2].im[p])));}
