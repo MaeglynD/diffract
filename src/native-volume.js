@@ -8,9 +8,9 @@ import {generateSpectralBench} from './spectral-bench.js';
 // All native scenes are generated at full quality immediately, with no downloads
 // and no later resolution swap. The fields themselves remain monochromatic.
 export async function generateNativeVolume(id,signal,progress=()=>{}){
- const e=NATIVE_EXPERIMENTS.find(e=>e.id===id.replace('-right',''));if(!e)throw Error('Unknown native volume');
- if(e.spectralBench)return generateSpectralBench(e,signal,progress);
- const dx=id==='tunnelling'?.02:id.startsWith('michelson')?.075:.04,dz=id==='tunnelling'?.018:id==='bragg-cavity'?.012:id.startsWith('michelson')?.055:.035;
+ const e=NATIVE_EXPERIMENTS.find(e=>e.id===id.replace(/-(right|bright)$/,''));if(!e)throw Error('Unknown native volume');
+ if(e.spectralBench)return generateSpectralBench({...e,id},signal,progress);
+ const dx=id==='grin'?.06:id==='absorber'?.08:id==='tunnelling'?.02:id.startsWith('michelson')?.075:.04,dz=id==='grin'?.06:id==='absorber'?.035:id==='tunnelling'?.018:id==='bragg-cavity'?.012:id.startsWith('michelson')?.055:.035;
  const nx=Math.ceil(2*e.half/dx)+1,ny=2,nz=Math.ceil(e.zMax/dz)+1,count=nx*ny*nz*4;
  const buffer=new ArrayBuffer(HEADER_BYTES+count*6),textures=[0,1,2].map(i=>new Uint16Array(buffer,HEADER_BYTES+i*count*2,count)),permittivity=new Float32Array(nx*nz),model=nativeModel(id),f=new Float64Array(10),peaks=[];
  const xs=Float64Array.from({length:nx},(_,i)=>(i/(nx-1)*2-1)*e.half);let maxE=0,maxFlux=0,last=performance.now();
@@ -24,7 +24,10 @@ export async function generateNativeVolume(id,signal,progress=()=>{}){
   peaks.push(Number(peak.toPrecision(5)));maxFlux=Math.max(maxFlux,peak);
   if(performance.now()-last>10){signal?.throwIfAborted();progress((iz+1)/nz);await new Promise(r=>setTimeout(r,0));last=performance.now();}
  }
- const meta={version:2,id,quality:'full',analytic:true,nx,ny,nz,half:e.half,zMax:e.zMax,maxE,maxFlux,peaks,viewHeight:e.viewHeight,energyDensity:!!e.energyDensity};
+ // Exposure metadata has its own axial resolution; the full complex field is
+ // untouched. Long instruments otherwise overflow the fixed asset header.
+ const exposurePeaks=peaks.length<=512?peaks:Array.from({length:512},(_,i)=>{const p=i/511*(peaks.length-1),a=Math.floor(p),f=p-a;return Number((peaks[a]*(1-f)+peaks[Math.min(a+1,peaks.length-1)]*f).toPrecision(5));});
+ const meta={version:2,id,quality:'full',analytic:true,nx,ny,nz,half:e.half,zMax:e.zMax,maxE,maxFlux,peaks:exposurePeaks,viewHeight:e.viewHeight,energyDensity:!!e.energyDensity};
  const bytes=new TextEncoder().encode(JSON.stringify(meta));if(bytes.length>=HEADER_BYTES)throw Error('Native field metadata exceeds header');new Uint8Array(buffer,0,bytes.length).set(bytes);
  return {buffer,permittivity};
 }

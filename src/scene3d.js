@@ -1,3 +1,5 @@
+import {LiveFieldGpu} from './live-field-gpu.js';
+import {LIVE_IDS,LIVE_DEFAULT,liveModel,demodulated} from './live-physics.js';
 import * as THREE from 'three';
 import {verifyGpuVolume} from './gpu-validation.js';
 import {detectorPeak} from './volume-data.js';
@@ -39,9 +41,10 @@ export class FieldScene{
   this.illumination=new THREE.Group();this.scene.add(this.illumination);this.models=new THREE.Group();this.scene.add(this.models);const fill=new THREE.HemisphereLight(0xc8e9ff,0x172431,2.2);this.scene.add(fill);const key=new THREE.DirectionalLight(0xffead9,3.3);key.position.set(-30,45,35);this.scene.add(key);const rim=new THREE.DirectionalLight(0x71c8ff,2.2);rim.position.set(35,12,-32);this.scene.add(rim);this.lightRig={fill,key,rim};this.studioUniforms={studioTint:{value:new THREE.Color(1,1,1)},studioFill:{value:1},studioDirection:{value:new THREE.Vector3(-.4,.8,1).normalize()}};
   this.emptyTexture=texture3D(new Uint16Array(4));
   this.uniforms={energyMap:{value:this.emptyTexture},electricMap:{value:this.emptyTexture},magneticMap:{value:this.emptyTexture},extraMap:{value:this.emptyTexture},dimensions:{value:new THREE.Vector3(1,1,1)},halfWidth:{value:17},zMax:{value:56},incidentLength:{value:10},plateHalf:{value:10},timePhase:{value:0},opacity:{value:.65},threshold:{value:.035},exposure:{value:1.1},steps:{value:512},fieldMode:{value:0},displayMode:{value:0},phaseReference:{value:0},planeSampling:{value:0},positiveColor:{value:shaderColor(PALETTES.cyan[0])},negativeColor:{value:shaderColor(PALETTES.cyan[1])},lowColor:{value:shaderColor(PALETTES.cyan[4])},midColor:{value:shaderColor(PALETTES.cyan[5])},highColor:{value:shaderColor(PALETTES.cyan[6])},reveal:{value:1}};
-  Object.assign(this.uniforms,{phaseHue:{value:0},rightElectric:{value:this.emptyTexture},rightMagnetic:{value:this.emptyTexture},rightExtra:{value:this.emptyTexture},rightDimensions:{value:new THREE.Vector3(1,1,1)},slitPhase:{value:0},interferenceEnabled:{value:false}});
+  Object.assign(this.uniforms,{linearMix:{value:false},auxiliaryMix:{value:0},phaseHue:{value:0},rightElectric:{value:this.emptyTexture},rightMagnetic:{value:this.emptyTexture},rightExtra:{value:this.emptyTexture},rightDimensions:{value:new THREE.Vector3(1,1,1)},slitPhase:{value:0},interferenceEnabled:{value:false}});
   Object.assign(this.uniforms,{nodalCount:{value:0},nodalPoints:{value:Array.from({length:12},()=>new THREE.Vector2())}});
   Object.assign(this.uniforms,{viewHeight:{value:17},densityDetector:{value:false},nativeField:{value:false},fineSampling:{value:false},focusWindow:{value:new THREE.Vector2(-1,-1)},interfaceZ:{value:0},volumeContrast:{value:1},fieldReference:{value:1}});
+  Object.assign(this.uniforms,{liveField:{value:false},liveElectric:{value:new THREE.Texture()},liveMagnetic:{value:new THREE.Texture()},liveExtra:{value:new THREE.Texture()},detectorExtent:{value:new THREE.Vector2(17,17)}});
   this.volumeMaterial=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:volumeVertex,fragmentShader:volumeFragment,uniforms:this.uniforms,transparent:true,side:THREE.BackSide,depthWrite:false,depthTest:false});
   this.volumeMesh=new THREE.Mesh(new THREE.BoxGeometry(66,34,34).translate(23,0,0),this.volumeMaterial);this.volumeMesh.layers.set(1);this.volumeMesh.visible=false;this.volumeMesh.frustumCulled=false;this.volumeMesh.renderOrder=0;this.scene.add(this.volumeMesh);
   this.eArrows=makeArrows(PALETTES.cyan[2]);this.bArrows=makeArrows(PALETTES.cyan[3]);this.scene.add(this.eArrows,this.bArrows);
@@ -52,7 +55,7 @@ export class FieldScene{
   this.depthTarget=new THREE.WebGLRenderTarget(1,1,{depthTexture:new THREE.DepthTexture(1,1)});this.depthTarget.texture.generateMipmaps=false;
   this.guideTarget=new THREE.WebGLRenderTarget(1,1,{depthTexture:new THREE.DepthTexture(1,1)});this.guideTarget.texture.generateMipmaps=false;
   Object.assign(this.uniforms,{elementDepth:{value:this.elementTarget.depthTexture},elementColor:{value:this.elementTarget.texture},clipObject:{value:false},objectFront:{value:new THREE.Texture()},fieldOrigin:{value:new THREE.Vector3()},fieldSign:{value:new THREE.Vector3(1,1,1)},travelMax:{value:56},sceneDepth:{value:this.depthTarget.depthTexture},guideDepth:{value:this.guideTarget.depthTexture},guideColor:{value:this.guideTarget.texture}});
-  for(const arrows of[this.eArrows,this.bArrows])for(const key of['elementDepth','elementColor','guideDepth','guideColor','viewportSize','viewportOrigin','showMask','showGuide'])arrows.material.uniforms[key]=this.uniforms[key];
+  for(const arrows of[this.eArrows,this.bArrows])for(const key of['linearMix','auxiliaryMix','elementDepth','elementColor','guideDepth','guideColor','viewportSize','viewportOrigin','showMask','showGuide'])arrows.material.uniforms[key]=this.uniforms[key];
   this.detectorMaterial=new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:detectorVertex,fragmentShader:detectorFragment,uniforms:this.detectorUniforms,side:THREE.DoubleSide,transparent:true,depthWrite:false,depthTest:true});
   this.detector=new THREE.Group();this.screen=new THREE.Mesh(new THREE.PlaneGeometry(1,1),this.detectorMaterial);this.screen.rotation.y=Math.PI/2;this.screen.visible=false;this.screen.renderOrder=3;this.detector.add(this.screen);this.frame=new THREE.Group();this.frame.layers.set(2);this.detector.add(this.frame);this.scene.add(this.detector);
   this.previewScene=new THREE.Scene();this.previewCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,2);this.previewCamera.position.z=1;this.previewMaterial=this.detectorMaterial.clone();this.previewMaterial.uniforms={...this.detectorUniforms,isPreview:{value:true}};this.previewMaterial.transparent=true;this.previewScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.previewMaterial));
@@ -102,6 +105,7 @@ export class FieldScene{
    for(const map of maps){signal?.throwIfAborted();this.renderer.initTexture(map);await new Promise(resolve=>setTimeout(resolve,0));}
    // Three defers uniform/attribute reflection until first use. Warm those
    // linked-program tables cooperatively, rather than all inside one frame.
+   if(LIVE_IDS.includes(e.id)&&!this.liveWarmer){this.liveWarmer=new LiveFieldGpu(e,{nx:1,nz:1});const before=this.renderer.getRenderTarget();this.renderer.setRenderTarget(this.liveWarmer.target);const warm=this.renderer.compileAsync(this.liveWarmer.scene,this.liveWarmer.camera);this.renderer.setRenderTarget(before);await warm;}
    this.preparedPrograms??=new WeakSet();
    for(const program of this.renderer.info.programs){
     if(this.preparedPrograms.has(program))continue;
@@ -116,13 +120,16 @@ export class FieldScene{
  discardPrepared(bundle){if(bundle)for(const root of Object.values(bundle))dispose(root);}
  setExperiment(e,volume,gpu,prepared){
 
-  const changed=this.experiment?.id!==e.id;if(changed){this.pendingAppearance=null;this.clearAuxiliary();this.setSlitPhase(0);this.presentationStart=0;const app=document.getElementById('app');app.dataset.ready='false';app.dataset.presented='false';for(const el of document.querySelectorAll('.world-label,#detector-handle')){el.hidden=true;delete el.dataset.positioned;}}this.experiment=e;this.volume=volume;this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.analytic||e.kind==='beams'?0:10;this.viewHeight=e.viewHeight||e.half;this.uniforms.viewHeight.value=this.viewHeight;this.uniforms.densityDetector.value=!!e.energyDensity;this.uniforms.nativeField.value=!!e.analytic;this.uniforms.fineSampling.value=!!e.analytic&&e.id!=='phase-microscope';
+  const changed=this.experiment?.id!==e.id;if(changed){this.pendingAppearance=null;this.pendingComparison=undefined;this.clearAuxiliary();this.setSlitPhase(0);this.presentationStart=0;const app=document.getElementById('app');app.dataset.ready='false';app.dataset.presented='false';for(const el of document.querySelectorAll('.world-label,#detector-handle')){el.hidden=true;delete el.dataset.positioned;}}this.experiment=e;this.volume=volume;
+  if(changed){this.live?.dispose();this.live=null;}if(LIVE_IDS.includes(e.id)&&!this.live){this.live=new LiveFieldGpu(e,volume);this.liveParameter=LIVE_DEFAULT[e.id];}this.uniforms.liveField.value=!!this.live;
+  if(this.live){['liveElectric','liveMagnetic','liveExtra'].forEach((key,i)=>this.uniforms[key].value=this.live.target.textures[i]);this.setExperimentParameter(this.liveParameter);}
+ this.half=e.half;this.zMax=e.zMax;this.incidentLength=e.analytic||e.kind==='beams'?0:10;this.viewHeight=e.viewHeight||e.half;this.uniforms.viewHeight.value=this.viewHeight;this.uniforms.densityDetector.value=!!e.energyDensity;this.uniforms.nativeField.value=!!e.analytic;this.uniforms.fineSampling.value=!!e.analytic&&e.id!=='phase-microscope';
   for(const name of['electricMap','magneticMap','extraMap','energyMap'])if(this.uniforms[name].value!==this.emptyTexture)this.uniforms[name].value.dispose();
   [this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]=gpu||[...volume.textures.map(t=>texture3D(t,volume.nx,volume.ny,volume.nz)),energyTexture(volume.energy,volume.nx,volume.ny,volume.nz)];
   this.uniforms.dimensions.value.set(volume.nx,volume.ny,volume.nz);this.uniforms.zMax.value=e.zMax;this.uniforms.travelMax.value=e.zMax;this.uniforms.halfWidth.value=e.half;this.uniforms.plateHalf.value=plateHalf(e);
   this.uniforms.interfaceZ.value=volume.interfaceZ||0;this.uniforms.fieldReference.value=volume.maxE;
   this.volumeMesh.geometry.dispose();this.volumeMesh.geometry=new THREE.BoxGeometry(e.zMax+this.incidentLength,2*e.half,2*e.half).translate((e.zMax-this.incidentLength)/2,0,0);this.volumeMesh.visible=true;
-  this.screen.scale.set(e.half*2,this.viewHeight*2,1);this.updateFrame();this.prepareVectorSamples();
+  this.uniforms.detectorExtent.value.set(e.detectorHalf||e.half,this.viewHeight);this.screen.scale.set((e.detectorHalf||e.half)*2,this.viewHeight*2,1);this.updateFrame();this.prepareVectorSamples();
   if(changed){
    if(!prepared)throw Error('Optical setup was not prepared');
    this.setupVersion=(this.setupVersion||0)+1;this.revealStart=performance.now();
@@ -131,11 +138,11 @@ export class FieldScene{
    (this.optic.userData.labels||[]).forEach((label,i)=>{const el=document.createElement('div');el.id='bench-label-'+i;el.className='world-label component-label';el.dataset.benchLabel='true';el.textContent=label.text;el.hidden=true;document.getElementById('app').append(el);});
    this.surfaceReady=this.topologyReady=true;this.lightOptic();this.uniforms.maskMap.value=this.optic.userData.maskMap;this.uniforms.nodalCount.value=0;
    if(this.models.userData.target){this.models.userData.target.material.uniforms.cutZ.value=this.z;document.getElementById('app').dataset.modelVertices=String(this.models.userData.meta.vertices);}
-   this.buildTrack();this.setDistance(e.z);this.setProbe(null);this.resetView(true);
+   this.optic.userData.setParameter?.(this.liveParameter);this.buildTrack();this.setDistance(e.z);this.setProbe(null);this.resetView(true);
   }else this.setDistance(this.z);
   if(this.models.userData.target)updateBunnySurface(this.models,volume);
   this.applyAppearance(this.options,true);
-  const app=document.getElementById('app');app.dataset.volumeDimensions=`${volume.nx},${volume.ny},${volume.nz}`;app.dataset.quality=volume.quality;if(volume.quality==='full'&&new URLSearchParams(location.search).has('verify'))app.dataset.gpuValidation=JSON.stringify(verifyGpuVolume(this.renderer,volume,[this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]));
+  const app=document.getElementById('app');app.dataset.volumeDimensions=`${volume.nx},${volume.ny},${volume.nz}`;app.dataset.quality=volume.quality;if(volume.quality==='full'&&new URLSearchParams(location.search).has('verify'))app.dataset.gpuValidation=JSON.stringify(verifyGpuVolume(this.renderer,{...volume,liveSampler:null},[this.uniforms.electricMap.value,this.uniforms.magneticMap.value,this.uniforms.extraMap.value,this.uniforms.energyMap.value]));
   document.getElementById('optic-name').textContent=e.opticLabel||(isProgrammable(e)?'Hologram display':e.kind==='beams'?'Coherent beam launchers':e.kind==='axicon'?'Axicon':e.kind==='phase'?'Phase relief + attenuation':'Aperture');
  }
  applyAppearance(options,force=false){
@@ -158,10 +165,11 @@ export class FieldScene{
   this.detectorUniforms.detectorZoom.value=o.detectorZoom;
   if(force||old.detectorZoom!==o.detectorZoom)this.updateFrame();
  }
- clearAuxiliary(){this.auxiliary=null;this.uniforms.interferenceEnabled.value=false;for(const key of ['rightElectric','rightMagnetic','rightExtra']){if(this.uniforms[key].value!==this.emptyTexture)this.uniforms[key].value.dispose();this.uniforms[key].value=this.emptyTexture;}}
+ clearAuxiliary(){this.uniforms.linearMix.value=false;this.uniforms.auxiliaryMix.value=0;this.auxiliary=null;this.uniforms.interferenceEnabled.value=false;for(const key of ['rightElectric','rightMagnetic','rightExtra']){if(this.uniforms[key].value!==this.emptyTexture)this.uniforms[key].value.dispose();this.uniforms[key].value=this.emptyTexture;}}
  setAuxiliary(volume,gpu){this.clearAuxiliary();this.auxiliary=volume;['rightElectric','rightMagnetic','rightExtra'].forEach((key,i)=>{this.uniforms[key].value=gpu?.[i]||texture3D(volume.textures[i],volume.nx,volume.ny,volume.nz);});this.uniforms.rightDimensions.value.set(volume.nx,volume.ny,volume.nz);this.uniforms.interferenceEnabled.value=true;this.prepareVectorSamples();this.updateArrows();}
+ setComparison(value){this.uniforms.linearMix.value=true;this.uniforms.auxiliaryMix.value=value;if(this.optic.userData.phaseDot)this.optic.userData.phaseDot.visible=value<.5;document.getElementById('app').dataset.comparison=String(value);}
  setSlitPhase(phase){this.uniforms.slitPhase.value=phase;this.eArrows.material.uniforms.slitPhase.value=this.bArrows.material.uniforms.slitPhase.value=phase;document.getElementById('app').dataset.slitPhase=String(phase);}
- setMode(mode){this.mode=mode;this.eArrows.visible=mode==='electric'||mode==='both';this.bArrows.visible=mode==='magnetic'||mode==='both';this.uniforms.fieldMode.value=0;}
+ setMode(mode){if(this.live&&this.mode!==mode)this.liveVectorsDirty=true;this.mode=mode;this.eArrows.visible=mode==='electric'||mode==='both';this.bArrows.visible=mode==='magnetic'||mode==='both';this.uniforms.fieldMode.value=0;}
  buildTrack(){
   dispose(this.track);this.track.clear();const y=-this.viewHeight-1.2,start=-this.incidentLength;
   for(let x=-this.half;x<=this.half;x+=5)this.track.add(line([[start,y,x],[this.zMax,y,x]],0x536e7b,.065));
@@ -169,18 +177,23 @@ export class FieldScene{
   this.track.add(line([[start,y,0],[this.zMax,y,0]],0x8ba5ad,.24));
  }
  updateFrame(){
-  dispose(this.frame);this.frame.clear();const h=this.half,v=this.viewHeight||h;const rim=line([[0,-v,-h],[0,v,-h],[0,v,h],[0,-v,h],[0,-v,-h]],0x9ab8c3,.25);rim.layers.set(2);this.frame.add(rim);
+  dispose(this.frame);this.frame.clear();const h=this.experiment?.detectorHalf||this.half,v=this.viewHeight||h;const rim=line([[0,-v,-h],[0,v,-h],[0,v,h],[0,-v,h],[0,-v,-h]],0x9ab8c3,.25);rim.layers.set(2);this.frame.add(rim);
   if(this.options.detectorZoom>1.01){const a=h/this.options.detectorZoom,b=v/this.options.detectorZoom,l=Math.min(a,b)*.18;for(const sy of[-1,1])for(const sz of[-1,1]){const corner=line([[.03,sy*(b-l),sz*a],[.03,sy*b,sz*a],[.03,sy*b,sz*(a-l)]],0xc1e4e9,.48);corner.layers.set(2);this.frame.add(corner);}}
  }
  setDistance(z){
   this.z=Math.max(.5,Math.min(this.zMax,z));this.detector.position.x=this.z;this.detectorUniforms.detectorZ.value=this.z;if(this.models.userData.target)this.models.userData.target.material.uniforms.cutZ.value=this.z;
-  if(this.volume)this.detectorUniforms.peak.value=detectorPeak(this.volume,this.z,this.options.detectorExposure);
+  if(this.volume)this.detectorUniforms.peak.value=this.options.detectorExposure==='fixed'&&this.experiment.detectorReference?this.experiment.detectorReference:detectorPeak(this.volume,this.z,this.options.detectorExposure);
   const nodes=this.options.vortexLines?planeIntersections(this.topology.userData.lines,this.z).slice(0,12):[];this.uniforms.nodalCount.value=nodes.length;nodes.forEach((p,i)=>this.uniforms.nodalPoints.value[i].set(p[0]/(2*this.half)+.5,p[1]/(2*this.half)+.5));
   updateIntersections(this.topology,nodes,this.z,this.options.detector);
   updateImageGuides(this.topology,this.z);
   if(this.probePoint)this.probeMesh.position.set(this.z+.08,this.probePoint.y,-this.probePoint.x);
  }
  setProbe(point){this.probePoint=point;this.probeMesh.visible=!!point;this.detectorUniforms.showProbe.value=!!point;if(point){this.detectorUniforms.probe.value.set(point.x/(2*this.half)+.5,point.y/(2*this.half)+.5);this.probeMesh.position.set(this.z+.08,point.y,-point.x);}}
+ setExperimentParameter(value){
+  if(!this.live)return;this.liveParameter=value;this.liveModel=liveModel(this.experiment.id,value);const model=this.liveModel;this.volume.liveSampler=(x,y,z,out)=>demodulated(model,x,z,out);this.liveVectorsDirty=true;
+  if(this.experiment.id==='grin')this.volume.vectorBounds=Array.from({length:32},(_,i)=>({z:.4+i/31*(this.experiment.zMax-1),xmin:-3.8,xmax:3.8,ymin:-.9,ymax:.9,peak:1}));
+  document.getElementById('app').dataset.parameter=String(value);
+ }
  prepareVectorSamples(){if(this.volume)this.vectorSamples=sampleVectorVolume(this.volume,this.options.density,this.auxiliary);}
  updateArrows(){
   if(!this.vectorSamples)return;const samples=[...this.vectorSamples];
@@ -199,15 +212,16 @@ export class FieldScene{
   this.camera.setViewOffset(this.mainWidth,this.mainHeight,capture||mobile?0:(this.previewRect.width+40)/2,capture?0:(bottomReserve-galleryBottom)/2,this.mainWidth,this.mainHeight);this.camera.updateProjectionMatrix();
   if(capture)target.set(bunny?-70:-6,0,0);
   const right=new THREE.Vector3().crossVectors(this.camera.up,direction).normalize(),up=new THREE.Vector3().crossVectors(direction,right),tan=Math.tan(THREE.MathUtils.degToRad(18));let distance=this.experiment?.analytic?5:30;
-  const points=capture?[]:(this.vectorSamples||[]).map(s=>s.origin),h=this.experiment?plateHalf(this.experiment):this.half;
+  const points=capture||this.experiment?.fitApparatus?[]:(this.vectorSamples||[]).map(s=>s.origin),h=this.experiment?plateHalf(this.experiment):this.half;
+  if(!capture)points.push(...(this.optic.userData.fit||[]));
   if(bunny)for(const x of[-103,-40])for(const y of[-29,28])for(const z of[-19,25])points.push([x,y,z]);if(!capture||!bunny)for(const point of this.illumination.userData.fit||[])points.push(point);
   if((!capture||!bunny)&&!this.experiment?.analytic)for(const y of[-h,h+1.8])for(const z of[-h,h])for(const x of[start,0])points.push([x,y,z]);
-  if(this.experiment?.analytic)for(const x of[0,this.zMax])for(const y of[-this.viewHeight-.4,this.viewHeight+.4])for(const z of[-this.half,this.half])points.push([x,y,z]);
-  if(!capture)for(const y of[-this.viewHeight-1.5,this.viewHeight])for(const z of[-this.half,this.half])points.push([this.z,y,z]);
+  if(this.experiment?.analytic&&!this.experiment.fitApparatus)for(const x of[0,this.zMax])for(const y of[-this.viewHeight-.4,this.viewHeight+.4])for(const z of[-this.half,this.half])points.push([x,y,z]);
+  if(!capture)for(const y of[-this.viewHeight-1.5,this.viewHeight])for(const z of[-(this.experiment?.detectorHalf||this.half),this.experiment?.detectorHalf||this.half])points.push([this.z,y,z]);
   if(view==='field'){target.set(this.experiment?.vortex?22:this.experiment?.id==='saturn'?40:this.z,0,0);points.length=0;const extent=this.experiment?.vortex?7:this.experiment?.id==='saturn'?15:Math.min(this.half,12);for(const x of[-extent,extent])for(const y of[-extent,extent])for(const z of[-extent,extent])points.push([target.x+x,y,z]);}
   if(!points.length)points.push([0,-this.half,-this.half],[this.zMax,this.half,this.half]);
   for(const point of points){const p=new THREE.Vector3(...point).sub(target);distance=Math.max(distance,Math.abs(p.dot(right))/(tan*this.camera.aspect*Math.max(.24,usableW/this.mainWidth))+p.dot(direction),Math.abs(p.dot(up))/(tan*Math.max(.24,usableH/this.mainHeight))+p.dot(direction));}
-  const position=target.clone().addScaledVector(direction,distance*1.04);
+  const position=target.clone().addScaledVector(direction,distance*1.04*(mobile?1:this.experiment?.viewScale||1));
   if(immediate||!this.camera.position.length()){this.controls.target.copy(target);this.camera.position.copy(position);this.controls.update();this.cameraTween=null;}
   else this.cameraTween={from:this.camera.position.clone(),to:position,fromTarget:this.controls.target.clone(),target,start:performance.now()};
  }
@@ -216,8 +230,8 @@ export class FieldScene{
   this.renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};this.cameraTween=null;this.transitionStart=0;});
   this.renderer.domElement.addEventListener('pointerup',e=>{if(!down||e.clientX>this.mainWidth||e.clientY>this.mainHeight||Math.hypot(e.clientX-down.x,e.clientY-down.y)>4||!this.volume||!this.options.detector)return;ray.setFromCamera(new THREE.Vector2(e.clientX/this.mainWidth*2-1,1-e.clientY/this.mainHeight*2),this.camera);const hit=ray.intersectObject(this.screen)[0];if(hit)this.onProbe(-hit.point.z,hit.point.y);});
   const handle=document.getElementById('detector-handle');
-  handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.setPointerCapture(e.pointerId);this.controls.enabled=false;this.cameraTween=null;const a=this.project([this.z,-this.viewHeight-1.2,0]),b=this.project([this.z+1,-this.viewHeight-1.2,0]);this.drag={x:e.clientX,y:e.clientY,z:this.z,dx:b.x-a.x,dy:b.y-a.y};});
-  handle.addEventListener('pointermove',e=>{if(!this.drag)return;const d=this.drag,den=Math.max(.05,d.dx*d.dx+d.dy*d.dy),delta=((e.clientX-d.x)*d.dx+(e.clientY-d.y)*d.dy)/den;this.onDistance(Math.max(.5,Math.min(this.zMax,d.z+delta)));});
+  handle.addEventListener('pointerdown',e=>{e.preventDefault();handle.setPointerCapture(e.pointerId);this.controls.enabled=false;this.cameraTween=null;if(this.live&&this.optic.userData.handle){this.drag={parameter:true,x:e.clientX,value:this.liveParameter};return;}const a=this.project([this.z,-this.viewHeight-1.2,0]),b=this.project([this.z+1,-this.viewHeight-1.2,0]);this.drag={x:e.clientX,y:e.clientY,z:this.z,dx:b.x-a.x,dy:b.y-a.y};});
+  handle.addEventListener('pointermove',e=>{if(!this.drag)return;const d=this.drag;if(d.parameter){this.onParameter?.(d.value+(e.clientX-d.x)*(this.experiment.id==='grin'?.02:.005));return;}const den=Math.max(.05,d.dx*d.dx+d.dy*d.dy),delta=((e.clientX-d.x)*d.dx+(e.clientY-d.y)*d.dy)/den;this.onDistance(Math.max(.5,Math.min(this.zMax,d.z+delta)));});
   const stop=()=>{this.drag=null;this.controls.enabled=true;};for(const name of['pointerup','pointercancel','lostpointercapture'])handle.addEventListener(name,stop);
  }
  project(point){const p=new THREE.Vector3(...point).project(this.camera);return{x:(p.x*.5+.5)*this.mainWidth,y:(.5-p.y*.5)*this.mainHeight,visible:p.z<1&&Math.abs(p.x)<1&&Math.abs(p.y)<1};}
@@ -246,15 +260,18 @@ export class FieldScene{
    onProgress(Math.min(1,(z+depth)/volume.nz));if(performance.now()>deadline){await next();deadline=performance.now()+5;}
   }return textures;}catch(error){textures.forEach(t=>t.dispose());throw error;}
  }
+ queueComparison(value){this.pendingComparison=value;}
  captureTransition(duration=360){if(!this.volume)return Promise.resolve();this.transitionDuration=duration;return new Promise(resolve=>{(this.capturePending??=[]).push(resolve);});}
  transitionAppearance(options){if(!this.volume){this.applyAppearance(options);return;}this.pendingAppearance={...options};}
  render(phase,now){
   const renderStarted=performance.now();
   this.updateTheme(now);
+  if(this.live){this.live.update(this.renderer,this.liveParameter);this.optic.userData.setParameter?.(this.liveParameter);if(this.liveVectorsDirty&&this.options.vectors!=='none'){this.prepareVectorSamples();this.updateArrows();this.liveVectorsDirty=false;}}
+
   if(this.cameraTween){const t=this.cameraTween,f=Math.min(1,(now-t.start)/380),s=1-(1-f)**3;this.camera.position.lerpVectors(t.from,t.to,s);this.controls.target.lerpVectors(t.fromTarget,t.target,s);if(f===1)this.cameraTween=null;}
   this.uniforms.reveal.value=1;this.eArrows.material.uniforms.reveal.value=this.bArrows.material.uniforms.reveal.value=1;
   this.controls.update();this.camera.updateMatrixWorld();this.studioUniforms.studioDirection.value.copy(this.lightRig.key.position).transformDirection(this.camera.matrixWorldInverse);this.uniforms.timePhase.value=phase;this.eArrows.material.uniforms.timePhase.value=this.bArrows.material.uniforms.timePhase.value=phase;
-  this.labelItems=[];this.positionLabel('detector-handle',[this.z,-this.viewHeight-1.2,0],this.options.detector);
+  this.labelItems=[];this.positionLabel('detector-handle',this.live&&this.optic.userData.handle?this.optic.userData.handle(this.liveParameter):[this.z,-this.viewHeight-1.2,0],this.live&&!!this.optic.userData.handle||this.options.detector&&(!this.experiment?.interaction||this.experiment.interaction.kind==='distance'));
   (this.optic.userData.labels||[]).forEach((label,i)=>this.positionLabel('bench-label-'+i,label.p,this.options.labels));
   if(this.options.labels){if(this.experiment){const h=plateHalf(this.experiment);this.positionLabel('optic-label',this.optic.userData.label||[0,h+1.1,0]);this.positionLabel('incident-label',[-10,h*.94+2,0],this.options.incident&&!this.experiment.analytic&&this.experiment.kind!=='beams');}const bunny=this.experiment?.object==='bunny';this.positionLabel('source-label',[-75,-18,0],bunny);this.positionLabel('sensor-label',[-42,22,0],bunny);this.positionLabel('processor-label',[-41,-30,23],bunny);this.positionLabel('object-light-label',[-57,20,27],bunny);this.positionLabel('reference-light-label',[-64,27,-7],bunny);this.positionLabel('target-label',[32,23,0],this.experiment?.object==='bunny'&&this.options.surfaceGuide);}
   this.positionLabel('vortex-label',[this.experiment?.vortex?22:32,6.5,0],!!(this.options.labels&&this.experiment?.vortex&&this.options.vortexLines));
@@ -277,7 +294,7 @@ export class FieldScene{
   const p=this.previewRect;if(p&&this.volume&&p.width>0&&p.height>0){renderer.clearDepth();renderer.setScissor(p.x,p.y,p.width,p.height);renderer.setViewport(p.x,p.y,p.width,p.height);renderer.render(this.previewScene,this.previewCamera);}
   renderer.setScissorTest(false);renderer.setViewport(0,0,this.width,this.height);
   if(this.transitionStart){const t=Math.min(1,(now-this.transitionStart)/(this.transitionDuration||360));this.transitionMaterial.uniforms.alpha.value=1-t*t*(3-2*t);renderer.render(this.transitionScene,this.previewCamera);if(t===1)this.transitionStart=0;}
-  if(this.capturePending||this.pendingAppearance){renderer.copyFramebufferToTexture(this.transitionTexture,new THREE.Vector2(0,0));this.transitionStart=now;const done=this.capturePending||[];this.capturePending=null;if(this.pendingAppearance){const next=this.pendingAppearance;this.pendingAppearance=null;this.transitionDuration=220;this.applyAppearance(next);}for(const resolve of done)resolve();}
+  if(this.capturePending||this.pendingAppearance||this.pendingComparison!==undefined){renderer.copyFramebufferToTexture(this.transitionTexture,new THREE.Vector2(0,0));this.transitionStart=now;const done=this.capturePending||[];this.capturePending=null;if(this.pendingAppearance){const next=this.pendingAppearance;this.pendingAppearance=null;this.transitionDuration=220;this.applyAppearance(next);}if(this.pendingComparison!==undefined){this.transitionDuration=220;this.setComparison(this.pendingComparison);this.pendingComparison=undefined;}for(const resolve of done)resolve();}
   if(measure)gl.endQuery(timer.TIME_ELAPSED_EXT);const transition=this.transitionStart?'active':'idle',app=document.getElementById('app');if(app.dataset.transition!==transition)app.dataset.transition=transition;
   if(this.volume){this.updateReady();app.dataset.hasScene='true';this.presentationStart||=now;if(now-this.presentationStart>320&&!this.transitionStart)app.dataset.presented='true';}
   const cost=performance.now()-renderStarted;if(cost>30){this.slowRenders??=[];this.slowRenders.push({at:Math.round(renderStarted),ms:Math.round(cost)});if(this.slowRenders.length>8)this.slowRenders.shift();app.dataset.slowRender=JSON.stringify(this.slowRenders);}

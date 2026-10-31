@@ -13,6 +13,7 @@ function advance(re,im,n,length,dz){const r=re.slice(),t=im.slice();for(let j=0;
 // A 128 transform represents those same modes exactly, at the output's 0.25λ
 // spacing; a 256 transform only oversamples an identical band-limited field.
 export function prepareSpectralBench(id,n=id==='fabry-perot'?128:256){
+ const difference=id.endsWith('-bright');id=id.replace('-bright','');
  const length=id==='phase-microscope'?64:32,size=n*n,regions=[];
  let re=new Float64Array(size),im=new Float64Array(size);
  for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=(i-n/2)*length/n,y=(j-n/2)*length/n,p=j*n+i,amplitude=Math.exp(-(x*x+y*y)/(id==='phase-microscope'?110:3.24)),phase=id==='phase-microscope'?specimenPhase(x,y):0;re[p]=amplitude*Math.cos(phase);im[p]=amplitude*Math.sin(phase);}
@@ -20,7 +21,7 @@ export function prepareSpectralBench(id,n=id==='fabry-perot'?128:256){
  const region=(z,r,t,backR=null,backI=null)=>{const data=new Float32Array(size*4);for(let p=0;p<size;p++){data[p*4]=r[p];data[p*4+1]=t[p];data[p*4+2]=backR?.[p]||0;data[p*4+3]=backI?.[p]||0;}regions.push({z,data});};
  if(id==='phase-microscope'){
   region(0,re,im);let previous=0;
-  for(const z of[20,40,60]){[re,im]=advance(re,im,n,length,z-previous);for(let j=0;j<n;j++)for(let i=0;i<n;i++){const p=j*n+i,x=(i-n/2)*length/n,y=(j-n/2)*length/n,r=Math.hypot(x,y),phase=z===40?(r<MICROSCOPE.dot?Math.PI/2:0):-K*r*r/(2*MICROSCOPE.f),amp=z===40?(r<MICROSCOPE.dot?.55:1):(r<MICROSCOPE.aperture?1:0),a=re[p],b=im[p];re[p]=amp*(a*Math.cos(phase)-b*Math.sin(phase));im[p]=amp*(a*Math.sin(phase)+b*Math.cos(phase));}fft2(re,im,n);bandlimit(re,im,n,length);region(z,re,im);previous=z;}
+  for(const z of[20,40,60]){[re,im]=advance(re,im,n,length,z-previous);for(let j=0;j<n;j++)for(let i=0;i<n;i++){const p=j*n+i,x=(i-n/2)*length/n,y=(j-n/2)*length/n,r=Math.hypot(x,y),phase=z===40?(!difference&&r<MICROSCOPE.dot?Math.PI/2:0):-K*r*r/(2*MICROSCOPE.f),amp=z===40?(!difference&&r<MICROSCOPE.dot?.55:1):(r<MICROSCOPE.aperture?1:0),a=re[p],b=im[p];re[p]=amp*(a*Math.cos(phase)-b*Math.sin(phase));im[p]=amp*(a*Math.sin(phase)+b*Math.cos(phase));}fft2(re,im,n);bandlimit(re,im,n,length);region(z,re,im);previous=z;}
  }else{
   for(const z of[0,ETALON.a,ETALON.b]){const fR=new Float64Array(size),fI=new Float64Array(size),bR=new Float64Array(size),bI=new Float64Array(size);
    for(let j=0;j<n;j++)for(let i=0;i<n;i++){const p=j*n+i,q2=((i<n/2?i:i-n)**2+(j<n/2?j:j-n)**2)/length**2;if(q2>=.65**2)continue;const q=Math.sqrt(1-q2),m=etalonMode(q),phase=K*((q-1)*z),c=Math.cos(phase),s=Math.sin(phase);let f,b;
@@ -31,6 +32,7 @@ export function prepareSpectralBench(id,n=id==='fabry-perot'?128:256){
    }region(z,fR,fI,bR,bI);
   }
  }
+ if(difference){const base=prepareSpectralBench(id,n);for(let r=0;r<regions.length;r++)for(let p=0;p<regions[r].data.length;p++)regions[r].data[p]-=base.regions[r].data[p];}
  return{n,length,regions};
 }
 // Same vector angular-spectrum relation as the original solver, extended to

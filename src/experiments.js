@@ -1,3 +1,4 @@
+import {INTERACTIONS} from './experiment-interactions.js';
 import { fft2, modeVector, TAU,propagate } from './physics.js';
 import {rabbitTransmission} from './image-hologram.js';
 import {heliconTransmission,spiralOpening,starOpening} from './structured-fields.js';
@@ -8,7 +9,7 @@ import {holographicTransmission} from './holographic-scenes.js';
 import {NATIVE_EXPERIMENTS} from './native-experiments.js';
 
 export const GRID = Object.freeze({ n: 512, length: 128, naSoft: 0.5, naMax: 0.62 });
-const ORDER=['michelson','phase-microscope','fabry-perot','bragg-cavity','circulator','tunnelling','coupler','trefoil','saturn','metamorphosis','bunny','healing','helix','spiral','autofocus','fractal','quasi','fork','crossed','petals','hopf','poisson','astigmatism','double','zone','caustic','talbot','hologram','axicon','vortex','hexagon','star','rabbit','airy'];
+const ORDER=['michelson','trefoil','grin','absorber','phase-microscope','saturn','circulator','healing','coupler','metamorphosis','tunnelling','bunny','helix','autofocus','bragg-cavity','spiral','fabry-perot','quasi','fractal','fork','petals','crossed','hopf','poisson','astigmatism','double','zone','caustic','talbot','hologram','axicon','vortex','hexagon','star','rabbit','airy'];
 export const EXPERIMENTS = Object.freeze([
  ...NATIVE_EXPERIMENTS,
  {id:'healing',name:'Self-healing light',zMax:48,z:27,scan:[8,40],half:20,radius:12,kind:'phase',programmable:true,interfaceZ:14,obstacleRadius:2.3,thumbnailHalf:6,opticLabel:'Bessel beam shaper',formula:String.raw`U_0=J_0(0.30kr)e^{-(r/w)^8}\mathbf1_{r<12\lambda},\qquad U_{b^+}=\mathbf1_{r>a}\mathcal P_bU_0`,parameters:String.raw`b=14\lambda,\quad a=2.3\lambda,\quad w=10\lambda,\quad U(z>b)=\mathcal P_{z-b}U_{b^+}`,description:'A real opaque obstacle interrupts the bright core of a Bessel-like beam partway through its travel. The remaining conical wave components interfere downstream and reconstruct the central structure. The two propagation regions are calculated separately, with absorption at the obstacle. Power is conserved within each region and decreases at the disc. No rays are bent around it by hand. The mask is an ideal absorbing boundary; material scattering at its edge is excluded.'},
@@ -38,7 +39,7 @@ export const EXPERIMENTS = Object.freeze([
   { id: 'hexagon', name: 'Six coherent holes', zMax: 64, z: 32, half: 18, radius: 4.7, kind: 'holes', color: '#9d6e9a', formula: String.raw`T(x,y)=\sum_{j=0}^{5}\mathbf1_{(x-R\cos\theta_j)^2+(y-R\sin\theta_j)^2<b^2}`, description: 'Six openings arranged on a ring produce a hexagonal interference network. Bright nodes and dark channels occupy three-dimensional space.', parameters: String.raw`R=3.8\lambda,\quad b=0.8\lambda,\quad\theta_j=j\pi/3` },
   { id: 'double', name: 'Double slit', zMax: 96, z: 30, half: 22, radius: 3, kind: 'slits', color: '#6287aa', formula: String.raw`T(x,y)=\operatorname{rect}(y/h)\left[\operatorname{rect}\!\left(\frac{x+d/2}{b}\right)+e^{i\delta}\operatorname{rect}\!\left(\frac{x-d/2}{b}\right)\right]`, description: 'Two finite rectangular openings show the evolution from aperture structure to interference fringes within a diffraction envelope.', parameters: String.raw`b=1.2\lambda,\quad h=4\lambda,\quad d=3.2\lambda,\quad-\pi\leq\delta\leq\pi` },
   { id: 'airy', name: 'Circular aperture', zMax: 80, z: 40, half: 22, radius: 3, kind: 'circle', color: '#5b9b85', formula: String.raw`T(r)=\mathbf1_{r<3\lambda}`, description: 'A circular opening produces a central lobe and dark rings. These are cross-sections of a diffracting volume, not rings pasted onto a screen.', parameters: String.raw`a=3\lambda,\quad\sin\theta_1\simeq 1.2197\lambda/(2a)` }
-].sort((a,b)=>ORDER.indexOf(a.id)-ORDER.indexOf(b.id)));
+].map(e=>({...e,interaction:INTERACTIONS[e.id]})).sort((a,b)=>ORDER.indexOf(a.id)-ORDER.indexOf(b.id)));
 
 export function experiment(id) { const e = EXPERIMENTS.find(x => x.id === id); if (!e) throw new Error(`Unknown experiment ${id}`); return e; }
 export function maskHalf(e){return e.id==='fractal'?8.2:e.kind==='slits'||e.kind==='circle'?5:e.radius+1.4;}

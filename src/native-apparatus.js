@@ -4,7 +4,7 @@ import {makeBenchApparatus} from './bench-apparatus.js';
 
 // Geometry depicts the boundaries used by native-fields.js. Open or finite
 // edges are viewing cutaways; they are not additional optical interfaces.
-const metal=()=>new THREE.MeshStandardMaterial({color:0x254452,metalness:.72,roughness:.27});
+const metal=()=>new THREE.MeshStandardMaterial({color:0x536d79,metalness:.45,roughness:.27,emissive:0x101f28,emissiveIntensity:.25});
 const dark=()=>new THREE.MeshStandardMaterial({color:0x091a23,metalness:.35,roughness:.42});
 function solid(g,m=metal()){const mesh=new THREE.Mesh(g,m);mesh.layers.enable(4);return mesh;}
 function glass(tint){return new THREE.ShaderMaterial({side:THREE.DoubleSide,depthWrite:true,uniforms:{opacity:{value:.35},tint:{value:new THREE.Color(tint)},studioFill:{value:1},studioTint:{value:new THREE.Color(1,1,1)},studioDirection:{value:new THREE.Vector3(-.4,.8,1).normalize()}},vertexShader:`varying vec3 n,v;void main(){vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}`,fragmentShader:`uniform float opacity,studioFill;uniform vec3 tint,studioTint,studioDirection;varying vec3 n,v;void main(){vec3 N=normalize(n),V=normalize(v);float f=pow(1.-abs(dot(N,V)),3.),s=pow(abs(dot(N,normalize(studioDirection+V))),70.);vec3 c=tint*(.25+.18*abs(dot(N,studioDirection)))+vec3(.78,.92,1.)*(s*.35+f*.28);gl_FragColor=vec4(c*studioTint*studioFill,opacity*(.22+.32*f));}`});}

@@ -1,3 +1,4 @@
+import {liveModel} from './live-physics.js';
 // Independent, monochromatic Maxwell solutions. Lengths are in vacuum wavelengths;
 // E is in E0 and the stored magnetic field is c B / E0. Phasors use exp(-i wt).
 // These TE models are invariant in y. Their finite display height is a viewing
@@ -43,6 +44,7 @@ export function gapMode(qx,width=GAP.width){
 
 const models=new Map();
 export function nativeModel(id){
+ if(['grin','absorber'].includes(id))return liveModel(id);
  if(models.has(id))return models.get(id);
  if(['michelson','michelson-right','bragg-cavity'].includes(id)){const m=benchModel(id);models.set(id,m);return m;}
  let model;

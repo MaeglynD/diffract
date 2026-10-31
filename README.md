@@ -12,9 +12,9 @@
 
 ---
 
-**diffract** lets you see the field between the optical element and the screen. Orbit an experiment, move its detector through space, and watch interference turn into rings, images, caustics, or knots.
+**diffract** lets you see the field between the optical element and the screen. Orbit an experiment, move a mirror, compare microscope images, or follow a detector through rings, caustics and knots.
 
-Thirty-four setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
+Thirty-six setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
 
 ## Explore
 
@@ -33,16 +33,19 @@ Thirty-four setups explore diffraction, holography, interferometry, microscopy, 
 
 There are also three-dimensional bunny and Saturn reconstructions, abruptly autofocusing Airy rings, rotating interference patterns, vortex gratings, fractal and quasiperiodic apertures, and the familiar double slit.
 
-Four complete instruments add **Michelson interferometry**, a **coherent phase-contrast microscope**, a **Fabry–Pérot resonator**, and a **photonic-crystal defect cavity**. Follow the actual split paths, lenses, Fourier-plane phase dot or dielectric layers. The Michelson has an adjustable return-arm delay; the microscope lets you jump between specimen, Fourier plane and image. These use ideal optical boundaries, with their approximations stated in the information view.
+Four complete instruments add **Michelson interferometry**, a **coherent phase-contrast microscope**, a **Fabry–Pérot resonator**, and a **photonic-crystal defect cavity**. Follow the actual split paths, lenses, Fourier-plane phase dot or dielectric layers. The Michelson mirror moves on its translation stage while a fixed detector reveals the interference. The microscope switches between bright field and phase contrast, with shortcuts to specimen, Fourier plane and image. These use ideal optical boundaries, with their approximations stated in the information view.
+
+**Light bending through glass** lets you move a beam’s launch position in graded-index glass and see its curved path change immediately. **Light controlling absorption** combines two opposing coherent beams at a thin resistive film: their relative phase can change absorption from zero to 100%. These tunable fields are recalculated on the GPU from their modal or boundary solutions, with an independent CPU reference.
 
 Three material-boundary experiments go beyond the aperture model: **Evanescent exchange** transfers light between parallel dielectric guides; a **Whispering-gallery cavity** confines a rotating cylindrical mode; and **Light across a forbidden gap** shows frustrated total internal reflection between two glass blocks. These solve their own monochromatic Maxwell boundary problems, including reflected or evanescent fields where applicable. Their finite-height cutaways expose vertically invariant fields; they do not model the scattering of finite-height hardware. The new scenes generate full-resolution fields locally, without downloading precomputed volumes.
 
+- **Manipulate the experiment.** Move the Michelson mirror, shift the graded-index launch, change the absorber’s input phase, or compare microscope contrast. Cavities expose their optical cycle. Diffraction experiments retain the moving detector.
 - **Move through the field.** The detector samples on the GPU while you drag. It does not wait for a new propagation calculation.
 - **Choose what you see.** Attached preview tabs select electric field, energy, or optical phase; independently switch electric and magnetic vectors on or off. Cavities and the Michelson show mean energy density on their observation plane; forward-propagating setups show axial flux. Electric field defaults to the instantaneous signed component, with RMS available in settings.
-- **Look closer.** Inspect a point numerically, compare phase and amplitude, or change the relative phase of two slits or interferometer arms.
+- **Look closer.** Inspect a point numerically, compare phase and amplitude, or change the relative phase of two slits.
 - **Keep a place.** Each setup has a shareable URL fragment, such as `/#trefoil`, `/#metamorphosis`, or `/#healing`.
 
-Drag to orbit, scroll to zoom, and right-drag to pan. The preview slider moves the detector; touching it pauses the automatic scan. **Space** resumes or pauses scanning, **R** reframes the experiment, and **T** cycles the temporary lighting themes. Preferences reset on reload.
+Drag to orbit, scroll to zoom, and right-drag to pan. The main control follows the experiment; touching it pauses its automatic motion. **Space** resumes or pauses that motion, **R** reframes the experiment, and **T** cycles the temporary lighting themes. Preferences reset on reload.
 
 [Browse the experiments and their mathematics →](docs/technical-reference.md#experiments)
 

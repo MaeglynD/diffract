@@ -63,6 +63,6 @@ export function showElement(e,tex){
  document.getElementById('element-kind').textContent=e.opticLabel||(e.kind==='beams'?'Three coherent beams':['bunny','rabbit','hologram'].includes(e.id)?'Ideal complex-amplitude display':phasePlate?'Phase relief + attenuator':'Transmission aperture');
  const legend=document.getElementById('element-legend');legend.replaceChildren();
  if(phasePlate){const key=document.createElement('div');key.className='phase-key';legend.append(key);const label=document.createElement('span');tex(label,String.raw`\arg T:\ -\pi\ \cdots\ \pi`);legend.append(label);}
- else legend.textContent=e.analytic?'The surfaces mark the boundaries used in the field calculation.':'Bright openings transmit the incoming field.';
+ else legend.textContent=e.id==='grin'?'The glass is a viewing cutaway of a continuous index gradient.':e.analytic?'The surfaces mark the boundaries used in the field calculation.':'Bright openings transmit the incoming field.';
  document.getElementById('setup-note').textContent=e.description;
 }

@@ -20,7 +20,7 @@ async function run(data,controller){
  try{
   signal.throwIfAborted();let buffer,permittivity,method='spectrum',fallbackReason;
   const nativeId=new URL(data.url).pathname.split('/').pop().replace(/(?:\.preview)?\.bin\.gz$/,'');
-  if(NATIVE_EXPERIMENTS.some(e=>e.id===nativeId.replace('-right',''))){const generated=await generateNativeVolume(nativeId,signal,p=>progress(p*.75));({buffer,permittivity}=generated);method=generated.method||'analytical';fallbackReason=generated.fallbackReason;}
+  if(NATIVE_EXPERIMENTS.some(e=>e.id===nativeId.replace(/-(right|bright)$/,''))){const generated=await generateNativeVolume(nativeId,signal,p=>progress(p*.75));({buffer,permittivity}=generated);method=generated.method||'analytical';fallbackReason=generated.fallbackReason;}
   else try{buffer=await compactField(data.url,signal,progress);}catch(error){signal.throwIfAborted();method='stored-volume';fallbackReason=error.message;const stream=await openFieldStream(data.url,signal);buffer=await new Response(stream.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();}
   signal.throwIfAborted();const reconstructed=performance.now(),v=Object.assign(decodeVolume(buffer),{permittivity}),vectorBounds=prepareVectorBounds(v),energy=data.url.includes('double-right')?null:await energyVolumeAsync(v,signal,p=>progress(.75+p*.23));let bunnyStrength;
   if(/\/bunny(?:\.preview)?\.bin\.gz/.test(data.url)){

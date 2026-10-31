@@ -22,14 +22,14 @@ export function stackAt(m,z){
  const f=mul(A,cis(m.k*q*s)),b=mul(B,cis(-m.k*q*s));return{E:add(f,b),H:scale(add(f,scale(b,-1)),q)};
 }
 function modes(sigma=.05){const a=[];let sum=0;for(let j=-16;j<=16;j++){const q=j*sigma/5,w=Math.exp(-.5*(q/sigma)**2);a.push({q,w,p:Math.sqrt(1-q*q)});sum+=w;}for(const m of a)m.w/=sum;return a;}
-export function benchModel(id){
+export function benchModel(id,parameter=0){
  if(id==='bragg-cavity'){
   const angular=modes(.025).map(m=>({...m,...stackMode(m.q)}));let xsCache,lateral;
   const model={epsilon:(x,z)=>{const l=BRAGG.layers.find(l=>z>=l.a&&z<l.b);return l?l.n*l.n:1;},field(x,z,out=new Float64Array(10)){out.fill(0);for(const m of angular){const s=stackAt(m,z),c=scale(cis(K*m.q*x),m.w),e=mul(s.E,c),h=mul(s.H,c);out[0]+=e[0];out[1]+=e[1];out[4]-=h[0];out[5]-=h[1];out[8]+=m.q*e[0];out[9]+=m.q*e[1];}return out;}};
   model.row=(xs,z)=>{if(xsCache!==xs){xsCache=xs;lateral=angular.map(m=>{const a=new Float64Array(xs.length*2);xs.forEach((x,i)=>{a[2*i]=m.w*Math.cos(K*m.q*x);a[2*i+1]=m.w*Math.sin(K*m.q*x);});return a;});}const out=new Float64Array(xs.length*10);angular.forEach((m,j)=>{const {E,H}=stackAt(m,z),c=lateral[j];for(let i=0;i<xs.length;i++){const p=i*10,r=E[0]*c[2*i]-E[1]*c[2*i+1],s=E[0]*c[2*i+1]+E[1]*c[2*i];out[p]+=r;out[p+1]+=s;out[p+4]-=H[0]*c[2*i]-H[1]*c[2*i+1];out[p+5]-=H[0]*c[2*i+1]+H[1]*c[2*i];out[p+8]+=m.q*r;out[p+9]+=m.q*s;}});return out;};return model;
  }
  if(id==='michelson'||id==='michelson-right'){
-  const angular=modes(.075),aux=id.endsWith('-right'),{splitterZ:Z,armX:Lx,armZ:Lz}=MICHELSON;
+  const angular=modes(.075),aux=id.endsWith('-right'),{splitterZ:Z,armX:Lx,armZ:baseLz}=MICHELSON,Lz=baseLz+parameter;
   function beam(out,x,z,dx,dz,amp,path=0){const s=x*dx+z*dz,t=-x*dz+z*dx;for(const m of angular){const a=K*(m.p*(s+path)+m.q*t),c=Math.cos(a)*m.w,r=Math.sin(a)*m.w,er=amp[0]*c-amp[1]*r,ei=amp[0]*r+amp[1]*c,qx=dx*m.p-dz*m.q,qz=dz*m.p+dx*m.q;out[0]+=er;out[1]+=ei;out[4]-=qz*er;out[5]-=qz*ei;out[8]+=qx*er;out[9]+=qx*ei;}}
   return{epsilon:()=>1,field(x,z,out=new Float64Array(10)){out.fill(0);const zz=z-Z,t=1/Math.sqrt(2);
    // Separate propagation regions meet at the ideal scattering junction.

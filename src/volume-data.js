@@ -34,6 +34,7 @@ export function loadVolume(url,signal,onProgress=()=>{}){
 }
 
 export function sampleField(volume, x, y, z, out = new Float32Array(10)) {
+  if(volume.liveSampler)return volume.liveSampler(x,y,z,out);
   const { nx, ny, nz, half, zMax, textures } = volume;
   const px = Math.min(nx - 1.00001, Math.max(0, (x / (2 * half) + .5) * (nx - 1)));
   const py = Math.min(ny - 1.00001, Math.max(0, (y / (2 * half) + .5) * (ny - 1)));
