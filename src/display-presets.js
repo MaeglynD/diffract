@@ -11,7 +11,7 @@ const LOOKS={
  grin:{axes:false,display:'energy',opacity:1.1,volumeContrast:1.6,exposure:1.2,maskOpacity:.48,detector:false,detectorExposure:'fixed',incident:false,gain:.18},
  absorber:{axes:false,display:'field',opacity:.65,threshold:.02,maskOpacity:.4,detector:false,detectorExposure:'fixed',incident:false,speed:.1,gain:.25},
  michelson:{display:'energy',planeSampling:'instantaneous',opacity:.28,threshold:.025,exposure:1.5,maskOpacity:.7,detectorOpacity:.55,detectorExposure:'fixed',axes:false,incident:false,gain:.25,detectorZoom:3},
- 'phase-microscope':{detectorExposure:'fixed',display:'energy',planeSampling:'instantaneous',opacity:.32,threshold:.025,exposure:1.4,maskOpacity:.4,detectorOpacity:.65,axes:false,incident:false,detectorZoom:1.7},
+ 'phase-microscope':{detectorExposure:'fixed',display:'phase',planeSampling:'instantaneous',opacity:.32,threshold:.025,exposure:1.4,maskOpacity:.4,detectorOpacity:.65,axes:false,incident:false,detectorZoom:1.7},
  'fabry-perot':{detector:false,display:'field',planeSampling:'instantaneous',opacity:.35,threshold:.025,exposure:1,maskOpacity:.25,detectorOpacity:.45,axes:false,incident:false,speed:.12,detectorZoom:2},
  'bragg-cavity':{detector:false,display:'field',planeSampling:'instantaneous',opacity:.25,volumeContrast:1.6,threshold:.02,exposure:1,maskOpacity:.25,detectorOpacity:.45,axes:false,incident:false,speed:.1,gain:.15},
  coupler:{display:'energy',planeSampling:'instantaneous',opacity:1.5,threshold:.015,volumeContrast:2,exposure:1,maskOpacity:.42,detectorExposure:'fixed',axes:false,labels:false,gain:.15,density:5,incident:false},
