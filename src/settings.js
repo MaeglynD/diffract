@@ -41,10 +41,18 @@ export function setupSettings(scene,tex,initial='bunny'){
   document.getElementById('vector-scale-note').textContent=options.vectorScale==='readable'?'A shared local scale reveals weak fields. Directions and relative electric–magnetic lengths are preserved.':'Arrow lengths are proportional to instantaneous field amplitude, with the same scale everywhere.';
   tex(document.getElementById('detector-quantity'),{field:options.planeSampling==='average'?String.raw`E_{y,\mathrm{rms}}/E_0`:String.raw`E_y/E_0`,energy:experiment(current).energyDensity?String.raw`\langle u\rangle/u_0`:String.raw`\langle S_z\rangle`,phase:options.phaseReference==='relative'?String.raw`\arg(\widetilde E_y e^{-ikz})`:String.raw`\arg\widetilde E_y-\omega t`}[options.display]);
   document.getElementById('detector-image').setAttribute('aria-label',`${{field:options.planeSampling==='average'?'RMS electric field':'Instantaneous electric field',energy:experiment(current).energyDensity?'Mean energy density':'Detector intensity',phase:'Optical phase'}[options.display]}. Click to inspect a point.`);
+  const quantity=document.getElementById('detector-quantity'),average=options.planeSampling==='average';
+  quantity.disabled=options.display!=='field';
+  quantity.title=options.display==='field'?(average?'RMS amplitude is nonnegative. Show the instantaneous signed field.':'Instantaneous signed field. Show RMS amplitude.'):'';
+  quantity.setAttribute('aria-label',options.display==='field'?(average?'RMS electric field. Switch to instantaneous.':'Instantaneous electric field. Switch to RMS.'):'Displayed field quantity');
   app.dataset.palette=options.palette;app.dataset.settings=JSON.stringify(options);if(apply)scene.applyAppearance(options);
  }
  let scheduled=0,pendingKey;
  const save=(changed,continuous=false)=>{if(!continuous){const key=scheduled&&pendingKey!==changed?undefined:changed;cancelAnimationFrame(scheduled);scheduled=0;reflect(key,false);if(['display','palette','planeSampling','phaseReference'].includes(changed))scene.transitionAppearance(options);else scene.applyAppearance(options);return;}pendingKey=scheduled&&pendingKey!==changed?undefined:changed;if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;reflect(pendingKey);});};
+ document.getElementById('detector-quantity').addEventListener('click',()=>{
+  if(options.display!=='field')return;
+  options.planeSampling=options.planeSampling==='average'?'instantaneous':'average';save('planeSampling');
+ });
  for(const el of document.querySelectorAll('[data-vector-toggle]'))el.addEventListener('click',()=>{let electric=options.vectors==='both'||options.vectors==='electric',magnetic=options.vectors==='both'||options.vectors==='magnetic';if(el.dataset.vectorToggle==='electric')electric=!electric;else magnetic=!magnetic;options.vectors=electric?(magnetic?'both':'electric'):(magnetic?'magnetic':'none');save('vectors');});
  for(const el of document.querySelectorAll('[data-option]'))el.addEventListener('click',()=>{
   if(el.dataset.option==='palette') palettePicked=true;

@@ -169,8 +169,8 @@ function updateProbe(){
  }
  const phase=TAU*probeZ-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
  tex($('probe-coordinates'),state.probe.z!=null?String.raw`(x,z)=(${state.probe.x.toFixed(1)},${probeZ.toFixed(1)})\lambda`:String.raw`(x,y)=(${state.probe.x.toFixed(1)},${state.probe.y.toFixed(1)})\lambda`);
- tex($('probe-electric'),String.raw`\frac{\mathbf E}{E_0}=\bigl(0,\,${number(real(0))},\,${number(real(2))}\bigr)`);
- tex($('probe-magnetic'),String.raw`\frac{c\mathbf B}{E_0}=\bigl(${number(real(4))},\,${number(real(6))},\,${number(real(8))}\bigr)`);
+ tex($('probe-electric'),String.raw`\frac{\mathbf E(t)}{E_0}=\bigl(0,\,${number(real(0))},\,${number(real(2))}\bigr)`);
+ tex($('probe-magnetic'),String.raw`\frac{c\mathbf B(t)}{E_0}=\bigl(${number(real(4))},\,${number(real(6))},\,${number(real(8))}\bigr)`);
  tex($('probe-flux'),String.raw`\langle S_z\rangle/I_0=${number(normalizedFlux(probeSample))}`);probeDirty=false;
 }
 function updateApparatusReference(id){

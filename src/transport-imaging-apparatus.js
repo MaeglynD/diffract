@@ -30,20 +30,25 @@ export function makeTransportImagingApparatus(e,root,{pane,box,solid,dark,rim,st
     for(const sign of [-1,1])box(root,[.65,h,.15],[-.43,0,sign*w*.5],nickel);
     const face=pane(root,new THREE.PlaneGeometry(w,h),point(-.38,0),0xaccacf);face.rotation.y=Math.PI/2;
     stand(point(-.43,-h*.5),floor+.3,.13);
-    const z=JET.scanZ;
-    // A cutaway of the upright collection objective. Its front lens looks
-    // down onto the measurement plane, as in a side-illuminated microscope.
-    sleeve(point(z,3.25),point(z,4.14),.68,1.22,nickel);
-    sleeve(point(z,4.14),point(z,5.65),1.22,1.22,enamel);
-    for(const y of [4.38,4.66,4.94])sleeve(point(z,y),point(z,y+.06),1.24,1.24,nickel);
-    const lens=pane(root,new THREE.SphereGeometry(1,48,20),point(z,3.28),0xadc6cc);lens.scale.set(.59,.14,.59);
-    box(root,[.42,7.74,.43],[z,1.66,-3.22],nickel);
-    box(root,[.71,.34,3.3],[z,5.3,-1.6],enamel);
-    const reticle=mount(new THREE.TorusGeometry(.12,.014,8,40),new THREE.MeshBasicMaterial({color:0xffdfa8}),point(z,.025));
+    // The objective overlooks the cylinder AND its shadow-side jet. Its body
+    // is a schematic observation aid, not a boundary in the 2D field solver.
+    const z=(center+JET.scanZ)/2,lift=.8;
+    sleeve(point(z,3.25+lift),point(z,4.14+lift),.68,1.22,nickel);
+    sleeve(point(z,4.14+lift),point(z,5.65+lift),1.22,1.22,enamel);
+    for(const y of [4.38,4.66,4.94])sleeve(point(z,y+lift),point(z,y+.06+lift),1.24,1.24,nickel);
+    const lens=pane(root,new THREE.SphereGeometry(1,48,20),point(z,3.28+lift),0xadc6cc);lens.scale.set(.59,.14,.59);
+    box(root,[.42,7.74+lift,.43],[z,1.66+lift/2,-3.22],nickel);
+    box(root,[.71,.34,3.3],[z,5.3+lift,-1.6],enamel);
+    // The section is fixed; only a mathematical point probe travels across it.
+    const scan=new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      point(JET.scanZ,.025,-JET.scanHalf),point(JET.scanZ,.025,JET.scanHalf)
+    ]),new THREE.LineDashedMaterial({color:0xffdfa8,transparent:true,opacity:.5,dashSize:.1,gapSize:.1,depthWrite:false}));
+    scan.computeLineDistances();root.add(scan);
+    const reticle=mount(new THREE.TorusGeometry(.12,.014,8,40),new THREE.MeshBasicMaterial({color:0xffdfa8}),point(JET.scanZ,.025));
     reticle.rotation.x=Math.PI/2;
     root.userData.setParameter=(x=0)=>{reticle.position.z=-x;};
     label('Collimated illumination',[-.43,1.65,3.1]);label('Glass microcylinder',[center,2.,.4]);
-    label('Imaging objective',[z,5.92,0]);
+    label('Imaging objective',[z,5.92+lift,0]);
     return;
   }
   if(e.id==='conveyor'){

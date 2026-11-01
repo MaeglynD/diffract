@@ -83,6 +83,10 @@
   </aside>
   <button id="detector-handle" aria-label="Drag detector" title="Move detector" hidden><svg viewBox="0 0 32 20"><path d="M1 10h30M5 6l-4 4 4 4m22-8l4 4-4 4"/><circle cx="16" cy="10" r="4"/></svg></button>
   <aside class="detector-ui" aria-label="Detector">
+   <section id="probe-readout" aria-label="Point measurement" hidden>
+    <div class="probe-heading"><span id="probe-coordinates"></span><button id="clear-probe" aria-label="Clear point measurement" title="Clear point measurement" hidden>×</button></div>
+    <div id="probe-electric"></div><div id="probe-magnetic"></div><div id="probe-flux"></div>
+   </section>
    <div class="detector-window">
    <div class="view-modes" role="tablist" aria-label="Field view">
     <button id="field-view-tab" role="tab" aria-controls="detector-view" aria-selected="false" tabindex="-1" data-option="display" data-value="field" aria-pressed="false"><span class="mode-symbol field-symbol"></span>Electric field</button>
@@ -90,8 +94,7 @@
     <button id="phase-view-tab" role="tab" aria-controls="detector-view" aria-selected="false" tabindex="-1" data-option="display" data-value="phase" aria-pressed="false"><span class="mode-symbol phase-symbol"></span>Phase</button>
    </div>
    <div id="detector-view" role="tabpanel" aria-labelledby="energy-view-tab">
-   <div class="detector-heading"><span id="detector-quantity" data-tex="\langle S_z\rangle"></span><button id="clear-probe" aria-label="Clear probe" hidden>×</button></div>
-   <div id="probe-readout" hidden><div id="probe-coordinates"></div><div id="probe-electric"></div><div id="probe-magnetic"></div><div id="probe-flux"></div></div>
+   <div class="detector-heading"><button id="detector-quantity" data-tex="\langle S_z\rangle" disabled></button></div>
    <div id="detector-image" tabindex="0" role="img" aria-label="Detector intensity. Click to inspect a point."><svg id="camera-marks" aria-hidden="true" focusable="false" style="display:none"><path vector-effect="non-scaling-stroke"/></svg></div>
    </div></div>
   <div id="jet-scan" hidden><div class="jet-caption"><span data-tex="|\widetilde E_y|^2/E_0^2"></span><output id="jet-value"></output></div><svg viewBox="0 0 200 40" preserveAspectRatio="none" role="img" aria-label="Transverse electric intensity. The dashed line is half the peak."><path class="half-maximum" d="M0 21H200"/><path id="jet-profile"/><circle id="jet-cursor" r="2.6"/></svg></div>

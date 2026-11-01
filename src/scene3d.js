@@ -396,6 +396,12 @@ export class FieldScene{
   const half=e.half/o.detectorZoom;
   overlay.setAttribute('viewBox',[-half,-half,2*half,2*half].join(' '));
   const marks=overlay.firstElementChild;
+  let section=overlay.querySelector('.jet-section');
+  if(type==='jet'){
+   if(!section){section=document.createElementNS('http://www.w3.org/2000/svg','path');section.classList.add('jet-section');section.setAttribute('vector-effect','non-scaling-stroke');section.setAttribute('stroke-dasharray','3 4');section.setAttribute('opacity','.45');overlay.append(section);}
+   section.style.display='';
+   section.setAttribute('d','M '+(-JET.scanHalf)+' '+(e.zMax/2-JET.scanZ)+' h '+(2*JET.scanHalf));
+  }else if(section)section.style.display='none';
   if(type==='jet')marks.setAttribute('transform','translate('+(this.liveParameter||0)+' '+(e.zMax/2-JET.scanZ)+')');
   else if(type==='beads')marks.setAttribute('transform','translate(0 '+(-this.uniforms.slitPhase.value/(2*CONVEYOR.beta))+')');
   else marks.removeAttribute('transform');

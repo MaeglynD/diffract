@@ -78,7 +78,6 @@
 [data-theme="Daylight"] .field-switches button[aria-pressed=true] { color: var(--electric); }
 [data-theme="Daylight"] .field-switches button:last-child[aria-pressed=true] { color: var(--magnetic); }
 [data-theme="Daylight"] .switch input:checked+i { background-color: #8ca4ad; }
-[data-theme="Daylight"] #probe-readout { background: #f4f7f7f5; color: var(--engraving); }
 [data-theme="Daylight"] #detector-quantity { color: #d2e2e6; }
 [data-theme="Daylight"] :is(dialog h2,.camera-choices,.sources) { border-color: #4d6b7533; }
 [data-theme="Daylight"] dialog::backdrop { background: #4a5d6659; }
@@ -95,3 +94,39 @@
 }
 .lighting-choices button:is(:hover,:focus-visible,[aria-pressed=true]) {color:var(--engraving,#def0f3);}
 .lighting-choices button[aria-pressed=true] {border-color:rgb(var(--edge-rgb)/.33);}
+
+/* Measurements share the preview's edge, surface and type in every palette.
+   The overlay is outside its layout, so probing never moves the sampled pixel. */
+#probe-readout {
+  position:absolute;right:0;bottom:calc(100% + 10px);
+  width:max(100%,252px);max-width:calc(100vw - 32px);box-sizing:border-box;
+  margin:0;padding:11px 13px 13px;border:0;border-radius:5px;
+  background:var(--tab-strip,#101b24f2);color:var(--engraving,#d4e7eb);
+  box-shadow:0 0 0 1px rgb(var(--edge-rgb,167 198 206)/.25),0 5px 18px #00000012;
+  backdrop-filter:blur(16px);font-size:10px;pointer-events:auto;
+  animation:probe-appear 160ms ease-out;
+}
+#probe-readout>div {margin:0;min-height:25px;display:flex;align-items:center;}
+#probe-readout .probe-heading {justify-content:space-between;gap:8px;margin-bottom:7px;}
+#probe-coordinates {color:var(--secondary,#91aab9);font-size:9px;}
+#probe-flux {color:var(--secondary,#91aab9);}
+#probe-readout #clear-probe {
+  position:static;width:28px;height:28px;padding:0;margin:-5px -6px -5px 0;
+  border-radius:4px;color:var(--secondary,#91aab9);font-size:21px;
+  transition:color 140ms ease,background 140ms ease;
+}
+#probe-readout #clear-probe:hover {color:var(--engraving,#d4e7eb);background:rgb(var(--edge-rgb,167 198 206)/.09);}
+.detector-window #detector-quantity {text-align:left;line-height:1.4;min-height:28px;margin:-4px;padding:4px;border:0;}
+.detector-window #detector-quantity:not(:disabled) {pointer-events:auto;cursor:pointer;transition:opacity 140ms ease,background 140ms ease;}
+.detector-window #detector-quantity:not(:disabled):hover {opacity:1;background:#08121a66;}
+.detector-window #detector-quantity:disabled {cursor:default;}
+@keyframes probe-appear {from{opacity:0}to{opacity:1}}
+@media(max-height:600px) and (min-width:651px) {
+  #probe-readout {width:252px;right:calc(100% + 12px);bottom:0;}
+}
+@media(max-height:540px) and (min-aspect-ratio:1/1) {
+  /* Keep the nanojet's extra profile below the readout, beside the inset.
+     Stacking all three instruments would overlap the catalogue here. */
+  #app[data-experiment=nanojet] #jet-scan {position:absolute;right:calc(100% + 12px);bottom:0;width:160px;}
+  #app[data-experiment=nanojet] #probe-readout {bottom:86px;}
+}
