@@ -1,6 +1,10 @@
+import {conveyorPhase} from './optical-conveyor.js';
+import {JET} from './nanojet.js';
+import {SCHLIEREN} from './schlieren.js';
 export const INTERACTIONS={
- conveyor:{kind:'parameter',phaseArm:'conveyor-right',label:'Transport phase',min:-4*Math.PI,max:4*Math.PI,step:.01,initial:0,period:14,symbol:'\\delta',unit:'pi'},
- schlieren:{kind:'comparison',aux:'schlieren-bright',choices:['Blade in','Blade out'],label:'Knife edge'},
+ nanojet:{kind:'parameter',sampleScan:true,label:'Scan across the jet',min:-JET.scanHalf,max:JET.scanHalf,step:.005,initial:0,period:16,symbol:'x_{\\rm p}',unit:'lambda',startPaused:true},
+ conveyor:{kind:'parameter',phaseArm:'conveyor-right',armPhase:conveyorPhase,label:'Delay carriage',min:-1,max:1,step:.001,initial:0,period:14,symbol:'\\Delta d',unit:'lambda'},
+ schlieren:{kind:'parameter',parameterBank:'schlieren-blade',label:'Knife-edge position',min:-SCHLIEREN.bladeLimit,max:SCHLIEREN.bladeLimit,step:.005,initial:0,period:24,symbol:'x_{\\rm k}',unit:'lambda',startPaused:true},
  'speckle-focus':{kind:'comparison',aux:'speckle-focus-bright',choices:['Uncorrected','Focused'],label:'Wavefront correction'},
  hartmann:{kind:'comparison',aux:'hartmann-bright',choices:['Flat wave','Astigmatic'],label:'Incident wavefront'},
  'sound-cell':{kind:'parameter',label:'Acoustic drive',min:0,max:2.7,step:.005,initial:1.72,period:18,symbol:'d',unit:'rad'},

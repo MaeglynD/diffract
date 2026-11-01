@@ -2,17 +2,18 @@ import {HEADER_BYTES,toHalf} from './volume-data.js';
 import {nativeModel,energyDensity} from './native-fields.js';
 import {NATIVE_EXPERIMENTS} from './native-experiments.js';
 import {generateSpectralBench} from './spectral-bench.js';
+import {loadKnifeTable} from './knife-table.js';
 import {conveyorVolume} from './optical-conveyor.js';
 
 // y-invariance permits two identical rows, with no loss of field information.
 // Backward waves need finer axial sampling than the forward angular spectra.
-// All native scenes are generated at full quality immediately, with no downloads
-// and no later resolution swap. The fields themselves remain monochromatic.
+// Field data are prepared at full spatial resolution before presentation. The fields themselves remain monochromatic.
 export async function generateNativeVolume(id,signal,progress=()=>{}){
- const e=NATIVE_EXPERIMENTS.find(e=>e.id===id.replace(/-(right|bright)$/,''));if(!e)throw Error('Unknown native volume');
+ const e=NATIVE_EXPERIMENTS.find(e=>e.id===id.replace(/-(right|bright|blade)$/,''));if(!e)throw Error('Unknown native volume');
+ if(id==='schlieren-blade')return loadKnifeTable(signal,progress);
  if(e.spectralBench)return generateSpectralBench({...e,id},signal,progress);
  if(e.id==='conveyor')return conveyorVolume(id,signal,progress);
- const dx=id==='sound-cell'?.125:id==='grin'?.06:id==='absorber'?.08:id==='tunnelling'?.02:id.startsWith('michelson')?.075:.04,dz=id==='sound-cell'?.125:id==='grin'?.06:id==='absorber'?.035:id==='tunnelling'?.018:id==='bragg-cavity'?.012:id.startsWith('michelson')?.055:.035;
+ const dx=id==='nanojet'?.0625:id==='sound-cell'?.125:id==='grin'?.06:id==='absorber'?.08:id==='tunnelling'?.02:id.startsWith('michelson')?.075:.04,dz=id==='nanojet'?.0625:id==='sound-cell'?.125:id==='grin'?.06:id==='absorber'?.035:id==='tunnelling'?.018:id==='bragg-cavity'?.012:id.startsWith('michelson')?.055:.035;
  const nx=Math.ceil(2*e.half/dx)+1,ny=2,nz=Math.ceil(e.zMax/dz)+1,count=nx*ny*nz*4;
  const buffer=new ArrayBuffer(HEADER_BYTES+count*6),textures=[0,1,2].map(i=>new Uint16Array(buffer,HEADER_BYTES+i*count*2,count)),permittivity=new Float32Array(nx*nz),model=nativeModel(id),f=new Float64Array(10),peaks=[];
  const xs=Float64Array.from({length:nx},(_,i)=>(i/(nx-1)*2-1)*e.half);let maxE=0,maxFlux=0,last=performance.now();

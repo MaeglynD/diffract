@@ -1,3 +1,4 @@
+import {showJetScan,updateJetScan} from './jet-scan.js';
 import {absorbedFraction} from './live-physics.js';
 import katex from '../vendor/katex/katex.mjs';
 import { EXPERIMENTS,experiment } from './experiments.js';
@@ -65,7 +66,7 @@ function loadProgress(id,value){if(requestedId!==id)return;const button=gallery.
 function commitExperiment(e,data,gpu,prepared,phaseArm){
  const commitStarted=performance.now();
  const id=e.id;focusSeek=null;scanHold=id==='metamorphosis'?1.8:0;configureFocusStops(id);
- state.id=id;state.z=e.z;state.phase=0;state.sweepDirection=1;state.probe=null;state.sweeping=!thumbnail&&!['cycle','comparison'].includes(e.interaction?.kind);state.playing=!thumbnail;state.slitPhase=0;state.comparison=0;updateSweep();updatePlay();
+ state.id=id;state.z=e.z;state.phase=0;state.sweepDirection=1;state.probe=null;state.sweeping=!thumbnail&&!e.interaction?.startPaused&&!['cycle','comparison'].includes(e.interaction?.kind);state.playing=!thumbnail;state.slitPhase=0;state.comparison=0;updateSweep();updatePlay();
  $('app').dataset.experiment=id;$('app').dataset.pending='false';settings.useExperiment?.(id);
  $('slit-interference').hidden=id!=='double';$('slit-phase-title').textContent=id==='michelson'?'Return-arm optical delay':'Between the two slits';$('slit-phase').setAttribute('aria-label',id==='michelson'?'Relative arm phase':'Relative slit phase');$('slit-phase').value=0;paintRange($('slit-phase'));$('slit-phase').disabled=true;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=true;tex($('slit-phase-value'),String.raw`\delta=0`);
  $('surface-guide-setting').hidden=!e.object&&!['saturn','metamorphosis'].includes(id);$('surface-guide-label').textContent=id==='saturn'?'Design curves':id==='metamorphosis'?'Image guides':'Reconstruction surface';$('element-opacity-setting').hidden=e.kind==='beams';$('show-incident').closest('label').hidden=!!e.analytic;$('vortex-setting').hidden=!e.vortex;$('focus-emphasis-setting').hidden=!e.focusWindow;
@@ -91,14 +92,19 @@ async function selectExperiment(id,fromHistory=false){
  const preparing=scene.prepareExperiment(e,preparationSignal).then(bundle=>{if(!active()){scene.discardPrepared(bundle);return null;}prepared=bundle;return bundle;});
  preparing.catch(()=>{});
  try{
-  const armId=e.interaction?.phaseArm,mainFraction=armId ? .53 : 1;
-  const data=full.get(id)||await acquire(id,'preview',p=>loadProgress(id,p*.82*mainFraction));
+  const bankId=e.interaction?.parameterBank,armId=bankId||e.interaction?.phaseArm,mainFraction=armId ? .53 : 1;
+  let baseProgress=0,armProgress=0;
+  const report=(base,arm)=>{baseProgress=base;armProgress=arm;loadProgress(id,base*mainFraction+arm*(1-mainFraction));};
+  const main=full.get(id)||acquire(id,'preview',p=>report(p*.82,armProgress));
+  // This independent table can download and decode while the relay propagates.
+  const bank=bankId?acquire(bankId,'full',p=>report(baseProgress,p*.75)):null;
+  bank?.catch(()=>{});const data=await main;
   if(!active()){scene.discardPrepared(await preparing);return;}
-  gpu=await scene.uploadVolume(data,active,p=>loadProgress(id,(.82+p*.16)*mainFraction));prepared=await preparing;
+  gpu=await scene.uploadVolume(data,active,p=>report(.82+p*.18,armProgress));prepared=await preparing;
   if(!active()){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);return;}
   if(armId){
-   const partner=await acquire(armId,'full',p=>loadProgress(id,.53+p*.35));
-   if(active())phaseArm={data:partner,gpu:await scene.uploadVolume(partner,active,p=>loadProgress(id,.88+p*.1))};
+   const partner=await (bank||acquire(armId,'full',p=>report(1,p*.75)));
+   if(active())phaseArm={data:partner,gpu:await scene.uploadVolume(partner,active,p=>report(1,.75+p*.25))};
   }
   if(active())await scene.captureTransition(420);if(!active()){gpu?.forEach(t=>t.dispose());phaseArm?.gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);return;}
   commitExperiment(e,data,gpu,prepared,phaseArm);gpu=prepared=phaseArm=null;loading('');
@@ -129,22 +135,23 @@ function setDistance(z,manual=true){
  $('app').dataset.distance=state.z.toFixed(4);if(manual)$('app').dataset.cameraAtInput=scene.camera.position.toArray().join(',');
  if(!$('focus-stops').hidden)for(const button of $('focus-stops').children){const active=Math.abs(state.z-Number(button.dataset.focus))<1.8;if(button.getAttribute('aria-pressed')!==String(active))button.setAttribute('aria-pressed',String(active));}
 }
-function configureInteraction(e){const c=e.interaction,kind=c?.kind;$('experiment-control').hidden=!['parameter','cycle'].includes(kind);$('comparison-control').hidden=kind!=='comparison';$('absorption-meter').hidden=e.id!=='absorber';document.querySelector('.distance-control').dataset.secondary=String(!!kind&&kind!=='distance');$('inspection-setting').hidden=!kind||kind==='distance';$('inspection-distance').max=e.zMax;$('inspection-distance').value=state.z;paintRange($('inspection-distance'));
+function configureInteraction(e){showJetScan(e.id==='nanojet');const c=e.interaction,kind=c?.kind;$('experiment-control').hidden=!['parameter','cycle'].includes(kind);$('comparison-control').hidden=kind!=='comparison';$('absorption-meter').hidden=e.id!=='absorber';document.querySelector('.distance-control').dataset.secondary=String(!!kind&&kind!=='distance');$('inspection-setting').hidden=!kind||kind==='distance';$('inspection-distance').max=e.zMax;$('inspection-distance').value=state.z;paintRange($('inspection-distance'));
  const input=$('experiment-parameter');if(kind==='parameter'){const sign=c.sliderSign??1;input.min=sign>0?c.min:-c.max;input.max=sign>0?c.max:-c.min;input.step=c.step;$('experiment-control-label').textContent=c.label;input.setAttribute('aria-label',c.label);setParameter(c.initial,false);}else if(kind==='cycle'){input.min=0;input.max=2*Math.PI;input.step=.005;$('experiment-control-label').textContent='Optical cycle';input.setAttribute('aria-label','Optical cycle');}
  if(kind==='comparison'){
   const group=$('comparison-control');group.setAttribute('aria-label',c.label);
   for(const i of e.id==='phase-microscope'?[1,0]:[0,1])group.append(group.querySelector('[data-contrast="'+i+'"]'));
  }
  for(const b of document.querySelectorAll('[data-contrast]')){if(kind==='comparison')b.textContent=c.choices[Number(b.dataset.contrast)];b.disabled=true;b.setAttribute('aria-pressed',String(b.dataset.contrast==='0'));}
- $('detector-handle').title=e.id==='michelson'?'Move delay mirror':e.id==='grin'?'Move launch position':'Move detector';$('detector-handle').setAttribute('aria-label',e.id==='michelson'?'Move delay mirror':e.id==='grin'?'Move launch position':'Drag detector');scene.updatePreviewRect();
+ const action={schlieren:'Move knife edge',conveyor:'Move delay carriage',michelson:'Move delay mirror',grin:'Move launch position'}[e.id]||'Move detector';
+ $('detector-handle').title=action;$('detector-handle').setAttribute('aria-label',action);scene.updatePreviewRect();
 }
-function setParameter(value,manual=true){const c=experiment(state.id).interaction;if(c?.kind!=='parameter')return;state.parameter=Math.max(c.min,Math.min(c.max,Number(value)));scene.setExperimentParameter(state.parameter);$('experiment-parameter').value=state.parameter*(c.sliderSign??1);paintRange($('experiment-parameter'));if(manual){state.sweeping=false;updateSweep();lastInteraction=performance.now();}labelDirty=probeDirty=true;if(state.id==='absorber'){const a=absorbedFraction(state.parameter);$('absorption-meter').style.setProperty('--absorption',a);$('absorbed-value').textContent=Math.round(a*100)+'%';}}
+function setParameter(value,manual=true){const c=experiment(state.id).interaction;if(c?.kind!=='parameter')return;state.parameter=Math.max(c.min,Math.min(c.max,Number(value)));scene.setExperimentParameter(state.parameter);if(c.sampleScan)updateJetScan(state.parameter);$('experiment-parameter').value=state.parameter*(c.sliderSign??1);paintRange($('experiment-parameter'));if(manual){state.sweeping=false;updateSweep();lastInteraction=performance.now();}labelDirty=probeDirty=true;if(state.id==='absorber'){const a=absorbedFraction(state.parameter);$('absorption-meter').style.setProperty('--absorption',a);$('absorbed-value').textContent=Math.round(a*100)+'%';}}
 function setComparison(value,manual=true){if(!scene.auxiliary)return;state.comparison=Number(value);scene.queueComparison(state.comparison);for(const b of document.querySelectorAll('[data-contrast]'))b.setAttribute('aria-pressed',String(Number(b.dataset.contrast)===state.comparison));if(manual){state.sweeping=false;updateSweep();}probeDirty=true;}
 $('experiment-parameter').addEventListener('input',event=>{if(experiment(state.id).interaction?.kind==='cycle'){state.phase=Number(event.target.value);state.playing=false;updatePlay();updateSweep();labelDirty=probeDirty=true;}else setParameter(Number(event.target.value)*(experiment(state.id).interaction?.sliderSign??1));});
 $('inspection-distance').addEventListener('input',event=>{state.sweeping=false;updateSweep();setDistance(Number(event.target.value));});
 for(const b of document.querySelectorAll('[data-contrast]'))b.addEventListener('click',()=>setComparison(b.dataset.contrast));
 if(scene)scene.onParameter=value=>setParameter(value);
-function parameterTex(c,v){if(c.unit==='pi')return c.symbol+'='+(v/Math.PI).toFixed(2)+'\\pi';return c.unit==='rad'?`${c.symbol}=${v.toFixed(2)}\\,\\mathrm{rad}`:`${c.symbol}=${(v*180/Math.PI).toFixed(0)}^{\\circ}`;}
+function parameterTex(c,v){if(c.unit==='lambda')return c.symbol+'='+v.toFixed(2)+'\\lambda';if(c.unit==='pi')return c.symbol+'='+(v/Math.PI).toFixed(2)+'\\pi';return c.unit==='rad'?`${c.symbol}=${v.toFixed(2)}\\,\\mathrm{rad}`:`${c.symbol}=${(v*180/Math.PI).toFixed(0)}^{\\circ}`;}
 function updateDistanceLabel(){
  const kind=experiment(state.id).interaction?.kind;if(kind==='parameter')tex($('experiment-value'),experiment(state.id).interaction.symbol?parameterTex(experiment(state.id).interaction,state.parameter):state.id==='absorber'?String.raw`\delta=${(state.parameter/Math.PI).toFixed(2)}\pi`:String.raw`${state.id==='michelson'?String.raw`\Delta z_{\rm m}`:'x_0'}=${(state.parameter*(experiment(state.id).interaction.sliderSign??1)).toFixed(2)}\lambda`);else if(kind==='cycle')tex($('experiment-value'),String.raw`\omega t=${(state.phase/Math.PI).toFixed(2)}\pi`);
 tex($('distance-value'),String.raw`z=${state.z.toFixed(1)}\lambda`);tex($('physical-distance'),String.raw`${(state.z*.532).toFixed(2)}\,\mu\mathrm m`);$('distance').setAttribute('aria-valuetext',`${state.z.toFixed(1)} wavelengths`);labelDirty=false;}
@@ -155,10 +162,10 @@ function updateProbe(){
  if(!state.probe||!volume)return;
  const {x,y}=state.probe,probeZ=state.probe.z??state.z;
  sampleField(volume,x,y,probeZ,probeSample);
- if(scene.auxiliary){
+ if(scene.auxiliary&&!scene.auxiliary.knifeBank){
   const aux=sampleField(scene.auxiliary,x,y,probeZ),interaction=experiment(state.id).interaction;
   if(interaction?.aux){for(let c=0;c<10;c++)probeSample[c]+=state.comparison*aux[c];}
-  else mixSlitPhase(probeSample,aux,interaction?.phaseArm?state.parameter:state.slitPhase);
+  else mixSlitPhase(probeSample,aux,scene.uniforms.slitPhase.value);
  }
  const phase=TAU*probeZ-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
  tex($('probe-coordinates'),state.probe.z!=null?String.raw`(x,z)=(${state.probe.x.toFixed(1)},${probeZ.toFixed(1)})\lambda`:String.raw`(x,y)=(${state.probe.x.toFixed(1)},${state.probe.y.toFixed(1)})\lambda`);

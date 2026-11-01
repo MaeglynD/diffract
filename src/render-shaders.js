@@ -1,3 +1,5 @@
+import {splineShader} from './knife-response.js';
+
 export const arrowFragment=`
 uniform float daylightMix;uniform vec3 color;uniform sampler2D elementDepth,elementColor,guideDepth,guideColor;
 uniform vec2 viewportSize,viewportOrigin;uniform bool showMask,showGuide;
@@ -23,19 +25,67 @@ void main(){
  gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.);
 }`;
 
+const fieldSampling=`
+uniform bool liveField;
+#ifdef KNIFE_RESPONSE
+uniform bool knifeBank;
+#else
+const bool knifeBank=false;
+#endif
+uniform sampler2D liveElectric,liveMagnetic,liveExtra;
+uniform vec3 dimensions,bladeInterval;
+#ifdef BLADE_DIRECT
+${splineShader}
+#endif
+#ifdef KNIFE_RESPONSE
+uniform vec3 knifeLayout;
+vec4 bladeSample(sampler2D slices,highp sampler3D atlas,vec3 uv){
+#ifdef BLADE_DIRECT
+ return bladeField(atlas,uv);
+#else
+ vec3 p=(uv*dimensions-.5)/(dimensions-1.);
+ float w=knifeLayout.x,cols=knifeLayout.y;
+ float z=clamp((2.*p.z-1.)*(knifeLayout.z-1.),0.,knifeLayout.z-1.),a=floor(z),b=min(a+1.,knifeLayout.z-1.);
+ vec2 xy=clamp(p.xy,0.,1.)*(w-1.)+.5,size=vec2(textureSize(slices,0));
+ vec2 ua=(vec2(mod(a,cols),floor(a/cols))*w+xy)/size,ub=(vec2(mod(b,cols),floor(b/cols))*w+xy)/size;
+ return mix(texture(slices,ua),texture(slices,ub),fract(z));
+#endif
+}
+#endif
+vec4 electricAt(vec3 uv){if(liveField)return texture(liveElectric,uv.xz);
+#ifdef KNIFE_RESPONSE
+ if(knifeBank&&uv.z>=.5)return bladeSample(liveElectric,rightElectric,uv);
+#endif
+ return texture(electricMap,uv);}
+vec4 magneticAt(vec3 uv){if(liveField)return texture(liveMagnetic,uv.xz);
+#ifdef KNIFE_RESPONSE
+ if(knifeBank&&uv.z>=.5)return bladeSample(liveMagnetic,rightMagnetic,uv);
+#endif
+ return texture(magneticMap,uv);}
+vec4 extraAt(vec3 uv){if(liveField)return texture(liveExtra,uv.xz);
+#ifdef KNIFE_RESPONSE
+ if(knifeBank&&uv.z>=.5)return bladeSample(liveExtra,rightExtra,uv);
+#endif
+ return texture(extraMap,uv);}
+vec4 energyAt(vec3 uv){
+#if defined(KNIFE_RESPONSE) && !defined(BLADE_DIRECT)
+ if(knifeBank){if(uv.z<.5)return texture(energyMap,uv);return vec4(bladeSample(liveExtra,rightExtra,uv).b,0.,0.,0.);}
+#endif
+ if(liveField||knifeBank){
+  vec4 e=electricAt(uv),b=magneticAt(uv),v=extraAt(uv);
+  return vec4(.5*((liveField?v.a:1.)*dot(e,e)+dot(b,b)+dot(v.rg,v.rg)),0.,0.,0.);
+ }return texture(energyMap,uv);
+}`;
+
 export const detectorFragment=`
 precision highp float;precision highp sampler3D;
 uniform sampler3D energyMap,electricMap,magneticMap,extraMap,rightElectric,rightMagnetic,rightExtra;
 
-uniform bool liveField;uniform sampler2D liveElectric,liveMagnetic,liveExtra;
-vec4 electricAt(vec3 uv){return liveField?texture(liveElectric,uv.xz):texture(electricMap,uv);}
-vec4 magneticAt(vec3 uv){return liveField?texture(liveMagnetic,uv.xz):texture(magneticMap,uv);}
-vec4 extraAt(vec3 uv){return liveField?texture(liveExtra,uv.xz):texture(extraMap,uv);}
-vec4 energyAt(vec3 uv){vec4 value=texture(energyMap,uv);if(liveField){vec4 e=electricAt(uv),b=magneticAt(uv),v=extraAt(uv);value=vec4(.5*(v.a*dot(e,e)+dot(b,b)+dot(v.rg,v.rg)),0.,0.,0.);}return value;}
+${fieldSampling}
 
 uniform bool interferenceEnabled;uniform float slitPhase;uniform vec3 rightDimensions;
-uniform vec3 dimensions,positiveColor,negativeColor,lowColor,midColor,highColor;
-uniform float halfWidth,zMax,incidentLength,plateHalf,timePhase,opacity,threshold,exposure,steps,reveal,phaseHue;
+uniform vec3 positiveColor,negativeColor,lowColor,midColor,highColor;
+uniform float halfWidth,zMax,incidentLength,plateHalf,timePhase,opacity,threshold,exposure,steps,reveal,phaseHue,axialFeather;
 uniform int displayMode,phaseReference,planeSampling;
 uniform bool linearMix;uniform float auxiliaryMix;
 vec2 phaseDelta(vec2 v){float c=linearMix?auxiliaryMix:cos(slitPhase)-1.,s=linearMix?0.:sin(slitPhase);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}
@@ -73,15 +123,11 @@ export const volumeFragment=`
 precision highp float;precision highp sampler3D;
 uniform sampler3D energyMap,electricMap,magneticMap,extraMap,rightElectric,rightMagnetic,rightExtra;
 
-uniform bool liveField;uniform sampler2D liveElectric,liveMagnetic,liveExtra;
-vec4 electricAt(vec3 uv){return liveField?texture(liveElectric,uv.xz):texture(electricMap,uv);}
-vec4 magneticAt(vec3 uv){return liveField?texture(liveMagnetic,uv.xz):texture(magneticMap,uv);}
-vec4 extraAt(vec3 uv){return liveField?texture(liveExtra,uv.xz):texture(extraMap,uv);}
-vec4 energyAt(vec3 uv){vec4 value=texture(energyMap,uv);if(liveField){vec4 e=electricAt(uv),b=magneticAt(uv),v=extraAt(uv);value=vec4(.5*(v.a*dot(e,e)+dot(b,b)+dot(v.rg,v.rg)),0.,0.,0.);}return value;}
+${fieldSampling}
 
 uniform bool interferenceEnabled;uniform float slitPhase;uniform vec3 rightDimensions;
-uniform vec3 dimensions,positiveColor,negativeColor,lowColor,midColor,highColor;
-uniform float halfWidth,zMax,incidentLength,plateHalf,timePhase,opacity,threshold,exposure,steps,reveal,phaseHue;
+uniform vec3 positiveColor,negativeColor,lowColor,midColor,highColor;
+uniform float halfWidth,zMax,incidentLength,plateHalf,timePhase,opacity,threshold,exposure,steps,reveal,phaseHue,axialFeather;
 uniform int displayMode,phaseReference,planeSampling;
 uniform bool linearMix;uniform float auxiliaryMix;
 vec2 phaseDelta(vec2 v){float c=linearMix?auxiliaryMix:cos(slitPhase)-1.,s=linearMix?0.:sin(slitPhase);return vec2(c*v.x-s*v.y,s*v.x+c*v.y);}
@@ -138,6 +184,7 @@ void main(){
   vec3 p=ro+rd*t;vec4 e;float window;
   if(p.x<0.){window=(1.-smoothstep(plateHalf*.9,plateHalf*.94,length(p.yz)))*smoothstep(-incidentLength,-incidentLength+.6,p.x)*.08;e=vec4(1.,0.,0.,0.);}
   else{window=(nativeField?(1.-smoothstep(halfWidth*.92,halfWidth,abs(p.z)))*(1.-smoothstep(viewHeight*.88,viewHeight,abs(p.y))):(1.-smoothstep(halfWidth*.82,halfWidth,max(abs(p.y),abs(p.z))))*(1.-smoothstep(zMax-max(7.,zMax*.15),zMax,p.x)));if(window<.001)continue;e=displayMode==1&&(!interferenceEnabled||(linearMix?auxiliaryMix==0.:slitPhase==0.))?vec4(0.):electricAt(texturePoint(p));if(interferenceEnabled&&(linearMix?auxiliaryMix!=0.:slitPhase!=0.)){vec3 ruv=(vec3(-p.z/(2.*halfWidth)+.5,p.y/(2.*halfWidth)+.5,p.x/zMax)*(rightDimensions-1.)+.5)/rightDimensions;e+=vec4(phaseDelta(texture(rightElectric,ruv).rg),phaseDelta(texture(rightElectric,ruv).ba));}}
+  if(axialFeather>0.)window*=1.-smoothstep(zMax-axialFeather,zMax,p.x);
   if(clipObject){float front=texture(objectFront,vec2(.5-p.z/(2.*halfWidth),.5+p.y/(2.*halfWidth))).r;window*=1.-smoothstep(front-.3,front+.05,p.x);}
   if(focusWindow.x>0.)window*=.06+.94*smoothstep(focusWindow.x-5.,focusWindow.x,p.x)*(1.-smoothstep(focusWindow.y,focusWindow.y+5.,p.x));
   if(window<.001)continue;float phase=6.28318530718*p.x-timePhase,strength;vec3 tint;

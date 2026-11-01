@@ -7,13 +7,17 @@ const bessel = ['Axicon bench and measured beam sections · Figs. 2–4', 'https
 const sector = ['Open metal cavity · photograph, Fig. 1', 'https://arxiv.org/pdf/1909.02660#page=4'];
 
 export const SETUP_REFERENCES = {
+  nanojet:{
+    note:'Follow the side-illumination laser and the collection objective in Fig. 1. Fig. 2(g) places two intensity cross sections through the measured jet. Here the transverse scan samples the computed midplane directly. The published pillars were larger polymer structures on a substrate. This scene isolates an axially polarized wave scattering from homogeneous glass in air.',
+    links:[['Laser, sample and imaging objective · Fig. 1','https://pmc.ncbi.nlm.nih.gov/articles/PMC12592228/#j_nanoph-2025-0404_fig_001'],['Measured nanojets and width profiles · Fig. 2','https://pmc.ncbi.nlm.nih.gov/articles/PMC12592228/#j_nanoph-2025-0404_fig_002']]
+  },
   conveyor:{
-    note:'In Fig. 1, follow the two paths from the beam splitter through the axicons and opposing objectives to the sample. The scene magnifies their common trapping region and folds the upstream optics into the launch heads. The experiment transported particles in liquid. The simulated cone angle and site spacing are specified in vacuum.',
-    links:[['Two-beam trapping apparatus · Čižmár et al., Fig. 1','https://www.researchgate.net/figure/Experimental-setup-Linearly-polarized-beam-IPG-10-W-l-vac-1070-m-m_fig1_253810905'],['Optical conveyor belt · experimental paper','https://research-portal.st-andrews.ac.uk/en/publications/optical-conveyor-belt-for-delivery-of-submicron-objects/']]
+    note:'In Fig. 1, follow the two paths from the beam splitter through the axicons and opposing objectives to the sample. A motor moves mirror M3 to change the path length of one beam. The scene opens that double pass into a two-mirror folded delay so you can see both legs lengthen together. The launch heads summarize the axicons and telescopes. The experimental camera sees light scattered by particles in heavy water. Here the inset samples the calculated trapping field in vacuum.',
+    links:[['Two-beam trapping apparatus · Čižmár et al., Fig. 1','https://www.isibrno.cz/omitec/download/Cizmar_APL_05.pdf#page=2'],['Optical conveyor belt · experimental paper','https://research-portal.st-andrews.ac.uk/en/publications/optical-conveyor-belt-for-delivery-of-submicron-objects/']]
   },
   schlieren:{
     note:'Caltech’s Fig. 4 locates the test field, focusing optic, knife edge and image plane. Oberlin’s bench photographs show the razor and camera in a folded mirror layout. Here two lenses form a straight coherent relay. The heater identifies the source of a prescribed refractive-index plume.',
-    links:[['Knife-edge optical layout · Caltech, Fig. 4','https://shepherd.caltech.edu/T5/Ae104/Ae104b_handout2015.pdf#page=4'],['Bench photographs and heat-source demonstration · Oberlin','https://www2.oberlin.edu/physics/catalog/demonstrations/optics/schlieren.html']]
+    links:[['Setting the cutoff at focus · NASA','https://ntrs.nasa.gov/api/citations/20100030352/downloads/20100030352.pdf'],['Knife-edge optical layout · Caltech, Fig. 4','https://shepherd.caltech.edu/T5/Ae104/Ae104b_handout2015.pdf#page=4'],['Bench photographs and heat-source demonstration · Oberlin','https://www2.oberlin.edu/physics/catalog/demonstrations/optics/schlieren.html']]
   },
   'light-billiard': {
     note:'Compare the triangle in the lower-right inset of Fig. 1 with the plate and antenna cross-section in Fig. 11. The photograph in the second paper shows how a similar chamber opens. It has a sector-shaped rim. Here the mode-mixing slider selects two ideal resonances at the same frequency.',

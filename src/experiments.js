@@ -10,7 +10,7 @@ import {NATIVE_EXPERIMENTS} from './native-experiments.js';
 
 export const GRID = Object.freeze({ n: 512, length: 128, naSoft: 0.5, naMax: 0.62 });
 // Append new setups here so the existing gallery order survives each addition.
-const ORDER=['michelson','trefoil','phase-microscope','speckle-focus','grin','saturn','metamorphosis','quasi','light-billiard','sound-cell','fractal','circulator','healing','bunny','tunnelling','absorber','helix','autofocus','coronagraph','bragg-cavity','spiral','fabry-perot','coupler','hartmann','fork','petals','crossed','hopf','poisson','astigmatism','double','zone','caustic','talbot','hologram','axicon','vortex','hexagon','star','rabbit','airy','conveyor','schlieren'];
+const ORDER=['michelson','trefoil','phase-microscope','speckle-focus','grin','saturn','metamorphosis','quasi','light-billiard','sound-cell','fractal','circulator','healing','bunny','tunnelling','absorber','helix','autofocus','coronagraph','bragg-cavity','spiral','fabry-perot','coupler','hartmann','fork','petals','crossed','hopf','poisson','astigmatism','double','zone','caustic','talbot','hologram','axicon','vortex','hexagon','star','rabbit','airy','conveyor','schlieren','nanojet'];
 const galleryRank=new Map(ORDER.map((id,index)=>[id,index]));
 export const EXPERIMENTS = Object.freeze([
  ...NATIVE_EXPERIMENTS,

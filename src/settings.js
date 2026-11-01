@@ -27,6 +27,10 @@ export function setupSettings(scene,tex,initial='bunny'){
  document.getElementById('close-settings').addEventListener('click',()=>{open(false);button.focus({preventScroll:true});});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.getElementById('equations').open&&button.getAttribute('aria-expanded')==='true'){open(false);button.focus({preventScroll:true});}});
  function reflect(changed,apply=true){
+  if(!changed){
+   document.getElementById('field-threshold').max=current==='nanojet'?2:.2;
+   document.getElementById('volume-opacity').max=Math.max(1.5,appearanceFor(current).opacity);
+  }
   document.getElementById('phase-reference-setting').hidden=options.display!=='phase';
   document.getElementById('field-sampling-setting').hidden=options.display!=='field';
   document.querySelector('[data-option=display][data-value=phase]').title=options.phaseReference==='relative'?'Phase relative to a vacuum plane wave':'Instantaneous optical phase';
@@ -81,6 +85,6 @@ export function showElement(e,tex){
  document.getElementById('element-kind').textContent=e.opticLabel||(e.kind==='beams'?'Three coherent beams':['bunny','rabbit','hologram'].includes(e.id)?'Ideal complex-amplitude display':phasePlate?'Phase relief + attenuator':'Transmission aperture');
  const legend=document.getElementById('element-legend');legend.replaceChildren();
  if(phasePlate){const key=document.createElement('div');key.className='phase-key';legend.append(key);const label=document.createElement('span');tex(label,String.raw`\arg T:\ -\pi\ \cdots\ \pi`);legend.append(label);}
- else legend.textContent=e.id==='grin'?'The glass is a viewing cutaway of a continuous index gradient.':e.analytic?'The surfaces mark the boundaries used in the field calculation.':'Bright openings transmit the incoming field.';
+ else legend.textContent=e.elementLegend||(e.id==='grin'?'The glass is a viewing cutaway of a continuous index gradient.':e.analytic?'The surfaces mark the boundaries used in the field calculation.':'Bright openings transmit the incoming field.');
  document.getElementById('setup-note').textContent=e.description;
 }

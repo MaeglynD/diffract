@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import {CONVEYOR,trapPosition} from './optical-conveyor.js';
+import {CONVEYOR,conveyorPhase,trapPosition} from './optical-conveyor.js';
+import {JET} from './nanojet.js';
 import {SCHLIEREN} from './schlieren.js';
 
 const point=(z,y,x=0)=>new THREE.Vector3(z,y,x);
@@ -8,22 +9,46 @@ export function makeTransportImagingApparatus(e,root,{pane,box,solid,dark,rim,st
   function mount(geometry,material,position,group=root){
     const mesh=solid(geometry,material);mesh.position.copy(position);group.add(mesh);return mesh;
   }
-  function sleeve(a,b,rA,rB,material){
+  function sleeve(a,b,rA,rB,material,group=root){
     const axis=b.clone().sub(a);
-    const mesh=mount(new THREE.CylinderGeometry(rB,rA,axis.length(),64),material,a.clone().lerp(b,.5));
+    const mesh=mount(new THREE.CylinderGeometry(rB,rA,axis.length(),64),material,a.clone().lerp(b,.5),group);
     mesh.quaternion.setFromUnitVectors(point(0,1),axis.normalize());
     return mesh;
   }
-  function wire(points,radius,material){
-    return mount(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),48,radius,8,false),material,point(0,0));
-  }
   const trim=satin(0xb39572),nickel=satin(0x8195a0),enamel=dark();
 
+  if(e.id==='nanojet'){
+    const {center,radius}=JET,floor=-2.35;
+    box(root,[16.1,.22,11.5],[5.9,floor,0],enamel);
+    pane(root,new THREE.CylinderGeometry(radius,radius,3.9,128),point(center,-.13),0xaeced1);
+    const collar=mount(new THREE.RingGeometry(radius-.03,radius+.14,96),nickel,point(center,floor+.2));
+    collar.rotation.x=-Math.PI/2;
+    // The illuminated field of view is wider than the rod. Show the exit
+    // window of a sheet illuminator at the edge of that field of view.
+    const w=12.9,h=2.45;
+    box(root,[.65,.18,w],[-.43,-h*.5,0],enamel);box(root,[.65,.18,w],[-.43,h*.5,0],enamel);
+    for(const sign of [-1,1])box(root,[.65,h,.15],[-.43,0,sign*w*.5],nickel);
+    const face=pane(root,new THREE.PlaneGeometry(w,h),point(-.38,0),0xaccacf);face.rotation.y=Math.PI/2;
+    stand(point(-.43,-h*.5),floor+.3,.13);
+    const z=JET.scanZ;
+    // A cutaway of the upright collection objective. Its front lens looks
+    // down onto the measurement plane, as in a side-illuminated microscope.
+    sleeve(point(z,3.25),point(z,4.14),.68,1.22,nickel);
+    sleeve(point(z,4.14),point(z,5.65),1.22,1.22,enamel);
+    for(const y of [4.38,4.66,4.94])sleeve(point(z,y),point(z,y+.06),1.24,1.24,nickel);
+    const lens=pane(root,new THREE.SphereGeometry(1,48,20),point(z,3.28),0xadc6cc);lens.scale.set(.59,.14,.59);
+    box(root,[.42,7.74,.43],[z,1.66,-3.22],nickel);
+    box(root,[.71,.34,3.3],[z,5.3,-1.6],enamel);
+    const reticle=mount(new THREE.TorusGeometry(.12,.014,8,40),new THREE.MeshBasicMaterial({color:0xffdfa8}),point(z,.025));
+    reticle.rotation.x=Math.PI/2;
+    root.userData.setParameter=(x=0)=>{reticle.position.z=-x;};
+    label('Collimated illumination',[-.43,1.65,3.1]);label('Glass microcylinder',[center,2.,.4]);
+    label('Imaging objective',[z,5.92,0]);
+    return;
+  }
   if(e.id==='conveyor'){
     const {length,sites}=CONVEYOR,floor=-2.3;
-    // Two fibre-fed launch heads, with opposing annular pupils. The field
-    // starts at their exits. Everything hangs from one common alignment rail.
-    box(root,[length+5.6,.19,1.05],[length/2,floor,0],enamel);
+    box(root,[length+9.6,.19,6.1],[length/2+.65,floor,-2.0],enamel);
     for(const sign of [-1,1]){
       const exit=sign===-1?0:length,at=d=>point(exit+sign*d,0);
       sleeve(at(.18),at(.82),1.33,1.64,nickel);
@@ -34,21 +59,51 @@ export function makeTransportImagingApparatus(e,root,{pane,box,solid,dark,rim,st
       const glass=pane(root,new THREE.SphereGeometry(1,56,26),at(.13),0xabbfc7);glass.scale.set(.14,1.31,1.31);
       const pupil=mount(new THREE.RingGeometry(1.05,1.19,80),new THREE.MeshStandardMaterial({color:0xb4cccd,emissive:0x497c7b,side:THREE.DoubleSide}),at(.016));
       pupil.rotation.y=Math.PI/2;stand(point(exit+sign*1.25,-1.63),floor+.355,.11);
-      // Both fibres meet at the splitter behind the rail.
-      wire([at(2.5),point(exit+sign*2.83,0,-.5),point(exit+sign*2.76,-1.25,-1.7),
-        point(exit+sign*1.7,floor+.25,-1.98),point(length/2+sign*.45,floor+.25,-2.0)],.056,enamel);
     }
-    box(root,[.96,.38,.53],[length/2,floor+.25,-2.0],nickel);
-    sleeve(point(length/2,floor+.25,-2.23),point(length/2,floor+.25,-3.05),.09,.09,enamel);
+    // A common laser and splitter feed both heads. The folded delay has two
+    // parallel legs, so moving its mirror pair by d adds 2d to the right arm.
+    const splitter=-3.16,fold=length+3.02,turn=length+4.76,back=-3.8,returnLine=-2.42;
+    const moving=new THREE.Group();root.add(moving);
+    const feed=new THREE.MeshBasicMaterial({color:0x75e4d5,transparent:true,opacity:.64,depthWrite:false});
+    const mirrorFace=satin(0xc8d7df,.75);
+    const spot=new THREE.MeshBasicMaterial({color:0xb8fff1,side:THREE.DoubleSide});
+    function mirror(x,t,angle,face,group=root){
+      const m=mount(new THREE.BoxGeometry(.68,.68,.095),mirrorFace,point(x,0,t),group);m.rotation.y=angle;
+      const glint=mount(new THREE.CircleGeometry(.069,24),spot,point(x+.052*face*Math.sin(angle),0,t+.052*face*Math.cos(angle)),group);
+      glint.rotation.y=angle;
+      box(group,[.17,1.72,.18],[x,-1.12,t],nickel);
+    }
+    function link(a,b,group=root){return sleeve(a,b,.031,.031,feed,group);}
+    sleeve(point(splitter,0,back-1.75),point(splitter,0,back-.66),.29,.29,enamel);
+    sleeve(point(splitter,0,back-.66),point(splitter,0,back-.54),.245,.245,nickel);
+    link(point(splitter,0,back-.54),point(splitter,0,back));
+    pane(root,new THREE.BoxGeometry(.6,.6,.6),point(splitter,0,back),0xaacdd2);
+    const coat=pane(root,new THREE.PlaneGeometry(.82,.58),point(splitter,0,back),0x86c5c7);coat.rotation.y=-Math.PI/4;
+    link(point(splitter,0,back),point(splitter,0,0));mirror(splitter,0,-Math.PI/4,-1);
+    link(point(splitter,0,0),point(-2.5,0));
+    const outward=link(point(splitter,0,back),point(turn,0,back));
+    mirror(turn,back,-Math.PI/4,1,moving);link(point(turn,0,back),point(turn,0,returnLine),moving);mirror(turn,returnLine,Math.PI/4,-1,moving);
+    const returning=link(point(fold,0,returnLine),point(turn,0,returnLine));
+    mirror(fold,returnLine,Math.PI/4,1);link(point(fold,0,returnLine),point(fold,0,0));mirror(fold,0,Math.PI/4,-1);
+    link(point(fold,0,0),point(length+2.5,0));
+    box(moving,[.91,.24,2.15],[turn,-2.03,(back+returnLine)/2],nickel);
+    box(root,[3.4,.17,1.75],[turn,-2.25,(back+returnLine)/2],enamel);
+    const stage=[turn,.69,returnLine];
+    label('Laser & splitter',[splitter,.66,back]);label('Optical delay',stage);
     const ceramic=new THREE.MeshStandardMaterial({color:0xffedc9,metalness:.22,roughness:.2,emissive:0xc48244,emissiveIntensity:.34});
     const beadGeometry=new THREE.SphereGeometry(.098,30,18);
     const beads=sites.map(site=>mount(beadGeometry,ceramic,point(trapPosition(site,0),0)));
     const anchor=[length/2,.42,0];
-    root.userData.setParameter=(phase=0)=>{
+    root.userData.setParameter=(d=0)=>{
+      const phase=conveyorPhase(d);
       for(let i=0;i<sites.length;i++)beads[i].position.x=trapPosition(sites[i],phase);
       anchor[0]=beads[1].position.x;
+      moving.position.x=d;stage[0]=turn+d;
+      outward.position.x=(splitter+turn+d)/2;outward.scale.y=1+d/(turn-splitter);
+      returning.position.x=(fold+turn+d)/2;returning.scale.y=1+d/(turn-fold);
     };
-    label('Annular beam',[0,1.68,0]);label('Phase-controlled beam',[length,1.68,0]);
+    root.userData.handle=d=>[turn+d,-1.99,returnLine];
+    label('Opposing objectives',[length,1.68,0]);
     label('Trapped bead',anchor);
     return;
   }
@@ -74,7 +129,7 @@ export function makeTransportImagingApparatus(e,root,{pane,box,solid,dark,rim,st
   }
   const blade=new THREE.Group(),z=2*f;
   // A ground single-bevel edge faces the focus. The back of the blade is
-  // clamped to a carriage that physically withdraws for the open observation.
+  // clamped to a carriage that translates laterally through the focus.
   const bladeShape=new THREE.Shape();
   bladeShape.moveTo(0,-5.2);bladeShape.lineTo(6.8,-5.2);bladeShape.lineTo(7.3,-4.7);
   bladeShape.lineTo(7.3,4.7);bladeShape.lineTo(6.8,5.2);bladeShape.lineTo(0,5.2);bladeShape.closePath();
@@ -87,10 +142,11 @@ export function makeTransportImagingApparatus(e,root,{pane,box,solid,dark,rim,st
   box(blade,[.82,6.1,1.1],[z,0,7.15],enamel);
   box(blade,[.54,10,.64],[z,-7.8,7.15],nickel);
   box(blade,[2,.64,2.15],[z,-12.95,7.15],enamel);root.add(blade);
-  box(root,[1.64,.45,22],[z,-13.5,12],enamel);
+  box(root,[1.64,.45,8.2],[z,-13.5,7.15],enamel);
   stand(point(z,-13.7,7.5),floor+.27);
   const bladeLabel=[z,6.2,1];label('Knife edge',bladeLabel);
-  root.userData.setComparison=open=>{blade.position.z=open?14:0;bladeLabel[2]=blade.position.z+1;};
+  root.userData.setParameter=(edge=0)=>{blade.position.z=-edge;bladeLabel[2]=1-edge;};
+  root.userData.handle=edge=>[z,-12.5,7.15-edge];
   const h=e.cameraSensor.half;
   box(root,[1.02,2*h+.9,2*h+.9],[camera+.54,0,0],enamel);
   for(const s of [-1,1]){

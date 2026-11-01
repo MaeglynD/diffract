@@ -15,12 +15,12 @@ function advance(re,im,n,length,dz){const r=re.slice(),t=im.slice();for(let j=0;
 // The etalon's retained spectrum occupies only |m| < 21 in a 32λ window.
 // A 128 transform represents those same modes exactly, at the output's 0.25λ
 // spacing; a 256 transform only oversamples an identical band-limited field.
-export function prepareSpectralBench(id,n=/^(phase-microscope|hartmann|schlieren)/.test(id)?256:128,coronaLength=32){
+export function prepareSpectralBench(id,n=/^(phase-microscope|hartmann|schlieren)/.test(id)?256:128,coronaLength=32,edge=0){
  const difference=id.endsWith('-bright');id=id.replace('-bright','');
  if(id==='hartmann'||id==='speckle-focus'||id==='schlieren'){
   const length=id==='speckle-focus'?coronaLength:2*coronaLength;
   const grid={n,length,advance,bandlimit};
-  if(id==='schlieren')return {n,length,regions:schlierenRegions(difference,grid),fieldStartsAt:difference?2*SCHLIEREN.f:0};
+  if(id==='schlieren')return {n,length,regions:schlierenRegions(difference,grid,edge),fieldStartsAt:difference?2*SCHLIEREN.f:0};
   const regions=wavefrontRegions(id,difference,grid);
   if(difference)subtractRegions(regions,wavefrontRegions(id,false,grid));
   return {n,length,regions};

@@ -3,6 +3,7 @@ import {liveModel} from './live-physics.js';
 // E is in E0 and the stored magnetic field is c B / E0. Phasors use exp(-i wt).
 // These TE models are invariant in y. Their finite display height is a viewing
 // window, not an extra aperture or a claim to simulate finite-height scattering.
+import {jetModel} from './nanojet.js';
 import {CAVITY,GUIDE,GAP} from './native-config.js';
 import {benchModel} from './bench-fields.js';
 export {CAVITY,GUIDE,GAP};
@@ -46,6 +47,7 @@ const models=new Map();
 export function nativeModel(id){
  if(['grin','absorber','sound-cell','light-billiard'].includes(id))return liveModel(id);
  if(models.has(id))return models.get(id);
+ if(id==='nanojet'){const model=jetModel();models.set(id,model);return model;}
  if(['michelson','michelson-right','bragg-cavity'].includes(id)){const m=benchModel(id);models.set(id,m);return m;}
  let model;
  if(id==='circulator'){

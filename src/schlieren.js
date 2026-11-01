@@ -1,6 +1,6 @@
 import {fft2,TAU} from './physics.js';
 
-export const SCHLIEREN=Object.freeze({f:18,lens:12,beam:10,heaterY:-10.6,camera:72});
+export const SCHLIEREN=Object.freeze({f:18,lens:12,beam:10,heaterY:-10.6,camera:72,bladeLimit:1.625,bladeStep:.25});
 
 // Integrated refractive-index deficit of a warm plume at one instant.
 // A meandering stem feeds the curled edges of a rising cap. The optics
@@ -21,7 +21,7 @@ export function plumePhase(x,y){
   return -2.55*stem-1.65*cap+.98*cap*scrolls;
 }
 
-export function schlierenRegions(difference,{n,length,advance,bandlimit}){
+export function schlierenRegions(difference,{n,length,advance,bandlimit},edge=0){
   const {f,lens,beam}=SCHLIEREN,dx=length/n,regions=[];
   let re=new Float64Array(n*n),im=new Float64Array(n*n);
   const coords=Float64Array.from({length:n},(_,i)=>(i-n/2)*dx);
@@ -43,8 +43,8 @@ export function schlierenRegions(difference,{n,length,advance,bandlimit}){
     for(const [j,y] of coords.entries())for(const [i,x] of coords.entries()){
       const p=j*n+i;
       if(station===2){
-        // Area-averaged transmission of the half-plane at the central pixel.
-        const pass=Math.min(1,Math.max(0,.5+x/dx));
+        // Area-averaged transmission of the half-plane at each pupil pixel.
+        const pass=Math.min(1,Math.max(0,.5+(x-edge)/dx));
         // Withdrawing the blade restores precisely the blocked field. The
         // second lens acts linearly on this difference, at the same exposure.
         const transmission=difference?1-pass:pass;

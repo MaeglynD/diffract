@@ -5,7 +5,7 @@ import {benchPlane,prepareSpectralBench} from '../src/spectral-bench.js';
 import {SCATTER,LENSLETS} from '../src/wavefront-benches.js';
 import {EXPERIMENTS} from '../src/experiments.js';
 import {SETUP_REFERENCES} from '../src/setup-references.js';
-import {CONVEYOR,trapPosition,coneSection,axialFactors,conveyorField,conveyorVolume} from '../src/optical-conveyor.js';
+import {CONVEYOR,conveyorPhase,trapPosition,coneSection,axialFactors,conveyorField,conveyorVolume} from '../src/optical-conveyor.js';
 import {SCHLIEREN} from '../src/schlieren.js';
 import {decodeVolume,sampleField,normalizedFlux} from '../src/volume-data.js';
 const k=2*Math.PI;
@@ -22,6 +22,7 @@ function cameraObservations(id,z,n,length){
 }
 
 test('the conveyor moves three stable electric traps by one site per full phase turn',()=>{
+ assert.equal(conveyorPhase(.5),2*Math.PI);
  const E2=(x,y,z,phase)=>conveyorField(coneSection(x,y),axialFactors(z,phase)).slice(0,4).reduce((s,v)=>s+v*v,0);
  for(const phase of [-4*Math.PI,-.76,0,.91,4*Math.PI])for(const site of CONVEYOR.sites){
   const z=trapPosition(site,phase),f=conveyorField(coneSection(0,0),axialFactors(z,phase));

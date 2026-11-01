@@ -14,7 +14,7 @@
 
 **diffract** lets you see the field between the optical element and the screen. Orbit an experiment, move a mirror, compare microscope images, or follow a detector through rings, caustics and knots.
 
-Forty-three setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
+Forty-four setups explore diffraction, holography, interferometry, microscopy, resonant cavities and evanescent coupling. The three-dimensional field, electric and magnetic vectors, and detector all come from calculated complex fields. A small set of controls keeps the experiment in view; the deeper display settings stay tucked away.
 
 ## Explore
 
@@ -35,7 +35,7 @@ Three experiments have especially different controls. In **Eclipsing a star**, s
 
 In **Focusing through frosted glass**, adjust a segmented wavefront to concentrate speckle into one camera spot. In **Reading a wavefront**, a Shack–Hartmann sensor reveals the local tilt of a wave through the displacement of 25 spots. Each setup’s info view includes an **In the lab** comparison with the physical apparatus.
 
-**An optical conveyor belt** carries three beads between facing objectives as you shift the phase of one laser beam. In **Seeing warm air**, withdraw a razor blade from the focus and watch the bright and dark edges of a heated plume fade on the camera.
+**An optical conveyor belt** carries three beads between facing objectives as you move a delay carriage in one arm of a split laser. In **Seeing warm air**, slide a razor edge across the focused beam to vary a warm plume’s contrast. In **A jet of light**, scan across the narrow waist just outside a glass microcylinder and measure its width at half maximum.
 
 There are also three-dimensional bunny and Saturn reconstructions, abruptly autofocusing Airy rings, rotating interference patterns, vortex gratings, fractal and quasiperiodic apertures, and the familiar double slit.
 

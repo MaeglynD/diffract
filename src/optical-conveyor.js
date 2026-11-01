@@ -5,6 +5,8 @@ import {HEADER_BYTES,toHalf} from './volume-data.js';
 // therefore share an axial phase factor, even for the longitudinal fields.
 const sine=.45, cosine=Math.sqrt(1-sine*sine);
 export const CONVEYOR=Object.freeze({length:6.5,half:3.25,beta:TAU*cosine,spacing:1/(2*cosine),sites:[-3,0,2]});
+// Two legs of the delay lengthen in air. The carriage travel is in vacuum wavelengths.
+export const conveyorPhase=travel=>2*TAU*travel;
 export const trapPosition=(site,phase)=>CONVEYOR.length/2+site*CONVEYOR.spacing+phase/(2*CONVEYOR.beta);
 const ring=Array.from({length:48},(_,i)=>{
   const a=TAU*i/48,qx=sine*Math.cos(a),qy=sine*Math.sin(a);

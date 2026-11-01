@@ -4,10 +4,22 @@ import {prepareSpectralBench,benchPlane} from '../src/spectral-bench.js';
 import {color,png} from './preview-raster.mjs';
 import {SCATTER,LENSLETS} from '../src/wavefront-benches.js';
 import {CONVEYOR,coneSection,axialFactors,conveyorField,trapPosition} from '../src/optical-conveyor.js';
+import {JET,jetModel} from '../src/nanojet.js';
 import {SCHLIEREN} from '../src/schlieren.js';
 const line=(d,stroke='#94bac7',width=1.4)=>`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linejoin="round"/>`;
 const im=(href,x,y,w,h)=>`<image href="${href}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none"/>`;
 async function write(id,body){await writeFile(new URL('../assets/previews/'+id+'.svg',import.meta.url),`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="184" viewBox="0 0 320 184">${body}</svg>`);}
+
+// Section through the illuminated cylinder and the measured transverse profile.
+{
+ const model=jetModel(),w=172,h=104,v=new Float32Array(w*h),f=new Float64Array(10);
+ for(let j=0;j<h;j++)for(let i=0;i<w;i++){
+   model.field((j/(h-1)-.5)*10,i/(w-1)*JET.length,f);v[j*w+i]=f[0]**2+f[1]**2;
+ }
+ const profile=[];
+ for(let i=0;i<=90;i++){model.field(JET.scanHalf*(i/45-1),JET.scanZ,f);profile.push((i?'L':'M')+(218+i)+' '+(116-49*(f[0]**2+f[1]**2)/9.25).toFixed(2));}
+ await write('nanojet',im(color(v,w,h),6,38,194,110)+'<ellipse cx="76.2" cy="93" rx="32.1" ry="26.4" stroke="#9dbfc8" stroke-width="1.2" fill="none"/>'+line('M210 119h102','#476170',1)+line(profile.join(' '),'#a9cdcd',2));
+}
 
 // An axial field section between two launch heads, with the occupied wells.
 {

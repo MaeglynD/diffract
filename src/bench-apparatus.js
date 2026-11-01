@@ -12,7 +12,7 @@ export function makeBenchApparatus(e,{pane,box,solid,metal,dark}){
  const rim=(p,r,normal=new THREE.Vector3(1,0,0))=>{const m=solid(new THREE.TorusGeometry(r,.09,12,96));m.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);m.position.copy(p);root.add(m);return m;};
  const stand=(p,bottom,r=.14)=>{const m=solid(new THREE.CylinderGeometry(r,r,p.y-bottom,20));m.position.set(p.x,(p.y+bottom)/2,p.z);root.add(m);box(root,[1.4,.26,1.6],[p.x,bottom-.13,p.z]);};
  const disk=(p,r,normal,mirror=false)=>{rim(p,r,normal);const g=new THREE.CircleGeometry(r-.06,96);let face;if(mirror){face=solid(g,new THREE.MeshStandardMaterial({color:0xb4cbd4,metalness:.4,roughness:.23,emissive:0x19333e,emissiveIntensity:.35,side:THREE.DoubleSide}));face.position.copy(p);root.add(face);}else face=pane(root,g,p,0x98c5d0);face.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);return face;};
- if(e.id==='conveyor'||e.id==='schlieren'){
+ if(e.id==='conveyor'||e.id==='schlieren'||e.id==='nanojet'){
   makeTransportImagingApparatus(e,root,{pane,box,solid,dark,rim,stand,label});
  }else if(e.id==='hartmann'||e.id==='speckle-focus'){
   makeWavefrontApparatus(e,root,{pane,box,solid,dark,stand,label});
