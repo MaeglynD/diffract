@@ -7,9 +7,17 @@ const bessel = ['Axicon bench and measured beam sections · Figs. 2–4', 'https
 const sector = ['Open metal cavity · photograph, Fig. 1', 'https://arxiv.org/pdf/1909.02660#page=4'];
 
 export const SETUP_REFERENCES = {
+  conveyor:{
+    note:'In Fig. 1, follow the two paths from the beam splitter through the axicons and opposing objectives to the sample. The scene magnifies their common trapping region and folds the upstream optics into the launch heads. The experiment transported particles in liquid. The simulated cone angle and site spacing are specified in vacuum.',
+    links:[['Two-beam trapping apparatus · Čižmár et al., Fig. 1','https://www.researchgate.net/figure/Experimental-setup-Linearly-polarized-beam-IPG-10-W-l-vac-1070-m-m_fig1_253810905'],['Optical conveyor belt · experimental paper','https://research-portal.st-andrews.ac.uk/en/publications/optical-conveyor-belt-for-delivery-of-submicron-objects/']]
+  },
+  schlieren:{
+    note:'Caltech’s Fig. 4 locates the test field, focusing optic, knife edge and image plane. Oberlin’s bench photographs show the razor and camera in a folded mirror layout. Here two lenses form a straight coherent relay. The heater identifies the source of a prescribed refractive-index plume.',
+    links:[['Knife-edge optical layout · Caltech, Fig. 4','https://shepherd.caltech.edu/T5/Ae104/Ae104b_handout2015.pdf#page=4'],['Bench photographs and heat-source demonstration · Oberlin','https://www2.oberlin.edu/physics/catalog/demonstrations/optics/schlieren.html']]
+  },
   'light-billiard': {
     note:'Compare the triangle in the lower-right inset of Fig. 1 with the plate and antenna cross-section in Fig. 11. The photograph in the second paper shows how a similar chamber opens. It has a sector-shaped rim. Here the mode-mixing slider selects two ideal resonances at the same frequency.',
-    links:[['Triangular resonator · geometry and probe', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6403262/#Fig1'],sector]
+    links:[['Equilateral cavity geometry · Fig. 1','https://www.nature.com/articles/s41598-019-40048-0/figures/1'],['Cavity plates and antenna · Fig. 11','https://www.nature.com/articles/s41598-019-40048-0/figures/11'],sector]
   },
   'speckle-focus': {
     note:'Vellekoop and Mosk used a reflective modulator, a strongly scattering sample and camera feedback. This tabletop model unfolds the beam path and replaces the sample with a thin rough sheet. Both align the phases arriving at one camera pixel.',

@@ -3,9 +3,38 @@ import {acousticModel,drumModel,DRUM,drumHeight} from '../src/resonant-instrumen
 import {prepareSpectralBench,benchPlane} from '../src/spectral-bench.js';
 import {color,png} from './preview-raster.mjs';
 import {SCATTER,LENSLETS} from '../src/wavefront-benches.js';
+import {CONVEYOR,coneSection,axialFactors,conveyorField,trapPosition} from '../src/optical-conveyor.js';
+import {SCHLIEREN} from '../src/schlieren.js';
 const line=(d,stroke='#94bac7',width=1.4)=>`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linejoin="round"/>`;
 const im=(href,x,y,w,h)=>`<image href="${href}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none"/>`;
 async function write(id,body){await writeFile(new URL('../assets/previews/'+id+'.svg',import.meta.url),`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="184" viewBox="0 0 320 184">${body}</svg>`);}
+
+// An axial field section between two launch heads, with the occupied wells.
+{
+  const w=168,h=72,samples=new Float32Array(w*h);
+  for(let j=0;j<h;j++){
+    const section=coneSection(0,3*(2*j/(h-1)-1));
+    for(let i=0;i<w;i++){
+      const field=conveyorField(section,axialFactors(CONVEYOR.length*i/(w-1)));
+      samples[j*w+i]=Math.hypot(field[0],field[1]);
+    }
+  }
+  const head='<path d="M0 78h17l10-11h19l12 9v30l-12 9H27l-10-11H0z" stroke="#8299a3" fill="#2a3a44"/>'+line('M30 69v44m6-44v44m6-44v44','#6d8795',1.3);
+  const beads=CONVEYOR.sites.map(s=>'<circle cx="'+(59+202*trapPosition(s,0)/CONVEYOR.length)+'" cy="91" r="3.1" fill="#f1d4a6"/>').join('');
+  await write('conveyor',head+im(color(samples,w,h),59,43,202,96)+beads+'<g transform="translate(320) scale(-1 1)">'+head+'</g>');
+}
+
+// The Schlieren inset uses the calculated camera flux at the knife-edge setting.
+{
+  const model=prepareSpectralBench('schlieren'),f=benchPlane(model,SCHLIEREN.camera),n=112,values=new Float32Array(n*n);
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+    const pixelsPerUnit=model.n/model.length;
+    const p=(model.n/2+Math.round((1-2*j/(n-1))*9*pixelsPerUnit))*model.n+model.n/2+Math.round((2*i/(n-1)-1)*9*pixelsPerUnit);
+    values[j*n+i]=Math.sqrt(Math.max(0,-(f[0].re[p]*f[2].re[p]+f[0].im[p]*f[2].im[p])));
+  }
+  const lenses=[40,144].map(x=>'<ellipse cx="'+x+'" cy="91" rx="5" ry="32" fill="#9fd4db22" stroke="#779ca6"/>').join('');
+  await write('schlieren',line('M6 72 40 66 93 91 144 66 178 71 M6 110 40 116 93 91 144 116 178 111','#68949c')+lenses+'<path d="M92 91h16v35H92z" fill="#78919e" stroke="#bed0d3"/>'+line('M12 112v12m-2-15 4-2-4-2 4-2','#c79871',2)+im(color(values,n,n),187,29,126,126)+line('M187 29h126v126H187z','#38505b',1));
+}
 const e=acousticModel(1.72),w=204,h=124,v=new Float32Array(w*h),slice=new Float32Array(100*52);
 for(let j=0;j<h;j++)for(let i=0;i<w;i++){const f=e.field((j/(h-1)*2-1)*22,i/(w-1)*45);v[j*w+i]=Math.hypot(f[0],f[1]);}
 for(let j=0;j<52;j++)for(let i=0;i<100;i++){const f=e.field((i/99*2-1)*22,43);slice[j*100+i]=Math.abs(j-25.5)<10?Math.hypot(f[0],f[1]):0;}

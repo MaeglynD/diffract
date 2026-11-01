@@ -1,8 +1,20 @@
 import {DRUM,drumHeight} from './resonant-instruments.js';
+import {CONVEYOR} from './optical-conveyor.js';
+import {SCHLIEREN} from './schlieren.js';
 
 export const CORONA = Object.freeze({f:14, pupil:4, lens:9.2, mask:7, stop:3.15, tilt:.215});
 const lab={analytic:true,bench:true,customPreview:true,kind:'native'};
 export const NEW_LABS=[
+  {...lab,id:'conveyor',name:'An optical conveyor belt',zMax:CONVEYOR.length,z:CONVEYOR.length/2,half:CONVEYOR.half,viewHeight:CONVEYOR.half,radius:2.2,
+    energyDensity:true,planPreview:true,fitApparatus:true,viewDirection:[-.2,.47,1],detectorReference:4,opticLabel:'Counterpropagating Bessel beams',
+    formula:String.raw`\widetilde E_y\propto J_0(k_\perp r)\!\left[e^{i\beta(z-z_c)}+e^{i\delta}e^{-i\beta(z-z_c)}\right],\qquad U_{\rm dip}=-\tfrac14\operatorname{Re}(\alpha)|\widetilde{\mathbf E}|^2`,
+    parameters:String.raw`k_\perp=0.45k,\quad \beta=\sqrt{k^2-k_\perp^2},\qquad z_m=z_c+\frac{2\pi m+\delta}{2\beta}`,
+    description:'Two facing objectives send coherent beams into the same gap. Their electric fields reinforce at a row of sites. Tiny dielectric beads are drawn towards these maxima. Change the phase in one arm and the whole row moves, carrying the three beads with it. The preview looks along a slice through the beam axis. The model sums plane waves on two opposing cones in vacuum and places Rayleigh particles at their stable equilibria. Beads are enlarged for visibility. The model assumes slow transport and neglects particle scattering, drag and thermal motion.'},
+  {...lab,id:'schlieren',name:'Seeing warm air',spectralBench:true,zMax:SCHLIEREN.camera,z:SCHLIEREN.camera,half:12,viewHeight:12,radius:SCHLIEREN.lens,
+    cameraSensor:{z:SCHLIEREN.camera,half:10.8},viewDirection:[-.34,.41,1],detectorReference:1.25,opticLabel:'Knife-edge Schlieren bench',
+    formula:String.raw`U_0=A\,e^{i\phi},\qquad \phi(x,y)=k\!\int\!\big[n(x,y,z)-n_{\rm air}\big]\,dz,\qquad T_{\rm blade}(x_f)=\mathbf1_{x_f>0}`,
+    parameters:String.raw`f=18\lambda,\quad z_{\rm blade}=2f,\quad z_{\rm camera}=4f,\quad R_{\rm lens}=12\lambda`,
+    description:'Warm air rising from a heater delays light less than the surrounding air. A lens brings the undeflected beam to the edge of a razor. Light bent to one side passes the blade while light bent to the other side is blocked. A second lens images the plume onto the camera. Withdraw the blade to compare the same air at the same exposure. The optical path through the plume is prescribed at one instant. This coherent relay models diffraction through finite thin lenses and the blade. The image is inverted by the relay.'},
   {...lab,id:'speckle-focus',name:'Focusing through frosted glass',spectralBench:true,zMax:33,z:33,half:12,viewHeight:12,radius:10,
     cameraSensor:{z:33,half:10},viewDirection:[-.46,.38,1],detectorReference:8,opticLabel:'Wavefront shaper and diffuser',
     formula:String.raw`\widetilde E_y(\mathbf r_t)=\sum_j t_j e^{i\phi_j},\qquad \phi_j=-\arg t_j`,

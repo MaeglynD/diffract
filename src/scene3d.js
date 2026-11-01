@@ -2,6 +2,7 @@ import {LiveFieldGpu} from './live-field-gpu.js';
 import {LIVE_IDS,LIVE_DEFAULT,liveModel,demodulated} from './live-physics.js';
 import * as THREE from 'three';
 import {LENSLETS,SCATTER} from './wavefront-benches.js';
+import {CONVEYOR} from './optical-conveyor.js';
 import {verifyGpuVolume} from './gpu-validation.js';
 import {detectorPeak} from './volume-data.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
@@ -275,6 +276,10 @@ export class FieldScene{
  }
  setProbe(point){this.probePoint=point;this.probeMesh.visible=!!point;this.detectorUniforms.showProbe.value=!!point;if(point){this.detectorUniforms.probe.value.set(point.x/(2*this.half)+.5,point.y/(2*this.half)+.5);this.probeMesh.position.set((point.z??this.z)+.005,point.y,-point.x);this.detectorUniforms.planProbe.value.set(point.x/(2*this.half)+.5,((point.z??this.z)-this.zMax/2)/(2*this.half)+.5);}}
  setExperimentParameter(value){
+  if(this.experiment?.interaction?.phaseArm){
+   this.setSlitPhase(value);this.optic.userData.setParameter(value);this.updateCameraMarks();
+   document.getElementById('app').dataset.parameter=String(value);return;
+  }
   if(!this.live)return;this.liveParameter=value;this.liveModel=liveModel(this.experiment.id,value);const model=this.liveModel;this.volume.liveSampler=(x,y,z,out)=>demodulated(model,x,z,out);this.liveVectorsDirty=true;
   if(this.experiment.id==='grin')this.volume.vectorBounds=Array.from({length:32},(_,i)=>({z:.4+i/31*(this.experiment.zMax-1),xmin:-3.8,xmax:3.8,ymin:-.9,ymax:.9,peak:1}));
   document.getElementById('app').dataset.parameter=String(value);
@@ -356,12 +361,15 @@ export class FieldScene{
  project(point){const p=new THREE.Vector3(...point).project(this.camera);return{x:(p.x*.5+.5)*this.mainWidth,y:(.5-p.y*.5)*this.mainHeight,visible:p.z<1&&Math.abs(p.x)<1&&Math.abs(p.y)<1};}
  updateCameraMarks(){
   const overlay=document.getElementById('camera-marks'),e=this.experiment,o=this.options;
-  const type=e?.id==='hartmann'?'spots':e?.id==='speckle-focus'?'target':null;
-  const show=type&&o.labels&&o.display==='energy'&&Math.abs(this.z-e.cameraSensor.z)<.02&&(type==='target'||this.uniforms.auxiliaryMix.value===1);
+  const type=e?.id==='hartmann'?'spots':e?.id==='speckle-focus'?'target':e?.id==='conveyor'?'beads':null;
+  const show=type&&o.labels&&(type==='beads'||(o.display==='energy'&&Math.abs(this.z-e.cameraSensor.z)<.02&&(type==='target'||this.uniforms.auxiliaryMix.value===1)));
   overlay.style.display=show?'block':'none';
   if(!show)return;
   const half=e.half/o.detectorZoom;
   overlay.setAttribute('viewBox',[-half,-half,2*half,2*half].join(' '));
+  const marks=overlay.firstElementChild;
+  if(type==='beads')marks.setAttribute('transform','translate(0 '+(-this.uniforms.slitPhase.value/(2*CONVEYOR.beta))+')');
+  else marks.removeAttribute('transform');
   if(overlay.dataset.marks===type)return;
   overlay.dataset.marks=type;
   let path='';
@@ -371,12 +379,19 @@ export class FieldScene{
     const x=(i-(count-1)/2)*pitch,y=(j-(count-1)/2)*pitch;
     path+='M '+(x-.43)+' '+y+' h .86 M '+x+' '+(y-.43)+' v .86 ';
    }
+  }else if(type==='beads'){
+   // In the axial preview +z points up. A small open ring locates each
+   // physical bead without hiding the field sample at its equilibrium.
+   for(const site of CONVEYOR.sites){
+    const y=-site*CONVEYOR.spacing;
+    path+='M -.105 '+y+' a .105 .105 0 1 0 .21 0 a .105 .105 0 1 0 -.21 0 ';
+   }
   }else{
    const x=SCATTER.targetX,y=-SCATTER.targetY;
    for(const dx of [-1,1])for(const dy of [-1,1])
     path+='M '+(x+dx*.78)+' '+(y+dy*1.3)+' h '+dx*.52+' v '+(-dy*.52)+' ';
   }
-  overlay.firstElementChild.setAttribute('d',path);
+  marks.setAttribute('d',path);
  }
  updateReady(){document.getElementById('app').dataset.ready=String(document.getElementById('app').dataset.experiment===this.experiment?.id&&!!this.volume&&this.surfaceReady&&this.topologyReady!==false&&(this.experiment?.object!=='bunny'||!!this.models.userData.target));}
  positionLabel(id,point,visible=true){const p=this.project(point),el=document.getElementById(id);if(!el)return;el.hidden=!this.volume||!visible||!p.visible||!Number.isFinite(p.x+p.y);if(el.classList.contains('world-label')){if(!el.hidden)this.labelItems.push({el,p});}else if(!el.hidden){el.style.transform=`translate(${p.x}px,${p.y}px)`;el.dataset.positioned='true';}}

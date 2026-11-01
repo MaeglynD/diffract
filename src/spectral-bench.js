@@ -3,6 +3,7 @@ import {HEADER_BYTES,fromHalf,toHalf} from './volume-data.js';
 import {SpectralVolume} from './spectral-volume.js';
 import {CORONA} from './lab-experiments.js';
 import {wavefrontRegions} from './wavefront-benches.js';
+import {SCHLIEREN,schlierenRegions} from './schlieren.js';
 
 export const MICROSCOPE={f:20,aperture:10,dot:.85};
 export const ETALON={a:4,b:12,R:.88};
@@ -14,11 +15,12 @@ function advance(re,im,n,length,dz){const r=re.slice(),t=im.slice();for(let j=0;
 // The etalon's retained spectrum occupies only |m| < 21 in a 32λ window.
 // A 128 transform represents those same modes exactly, at the output's 0.25λ
 // spacing; a 256 transform only oversamples an identical band-limited field.
-export function prepareSpectralBench(id,n=/^(phase-microscope|hartmann)/.test(id)?256:128,coronaLength=32){
+export function prepareSpectralBench(id,n=/^(phase-microscope|hartmann|schlieren)/.test(id)?256:128,coronaLength=32){
  const difference=id.endsWith('-bright');id=id.replace('-bright','');
- if(id==='hartmann'||id==='speckle-focus'){
-  const length=id==='hartmann'?2*coronaLength:coronaLength;
+ if(id==='hartmann'||id==='speckle-focus'||id==='schlieren'){
+  const length=id==='speckle-focus'?coronaLength:2*coronaLength;
   const grid={n,length,advance,bandlimit};
+  if(id==='schlieren')return {n,length,regions:schlierenRegions(difference,grid),fieldStartsAt:difference?2*SCHLIEREN.f:0};
   const regions=wavefrontRegions(id,difference,grid);
   if(difference)subtractRegions(regions,wavefrontRegions(id,false,grid));
   return {n,length,regions};
@@ -86,7 +88,8 @@ async function generateSpectralBenchGpu(e,signal,progress=()=>{}){
  if(gpu.n!==n){gpu.resources.forEach(t=>gpu.release(t));gpu.resources=[gpu.target(n,n),gpu.target(n,n)];gpu.n=n;}
  const sources=regions.map(r=>gpu.texture(n,n,r.data)),batch=16,rows=Math.ceil(ny/2),result=gpu.target(nx,rows*batch,true),pixels=new Uint32Array(nx*rows*batch*4),halves=new Uint16Array(pixels.buffer),stride=nx*rows*8;result.sliceHeight=rows;
  const pack=gl.createBuffer();gl.bindBuffer(gl.PIXEL_PACK_BUFFER,pack);gl.bufferData(gl.PIXEL_PACK_BUFFER,pixels.byteLength*3,gl.STREAM_READ);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);
- try{for(let start=0;start<nz;start+=batch){const layers=Math.min(batch,nz-start);for(let iz=start;iz<start+layers;iz++){signal?.throwIfAborted();const z=iz*e.zMax/(nz-1);let region=regions.findLastIndex(r=>z>=r.z-1e-8),current=0;gpu.use(0,gpu.resources[0],[sources[region]],{n,length,z:z-regions[region].z});for(let axis=0;axis<2;axis++)for(let span=1;span<n;span*=2){gpu.use(1,gpu.resources[1-current],gpu.resources[current].textures,{axis,span});current=1-current;}gpu.use(2,result,gpu.resources[current].textures,{n,length,halfWidth:e.half,dimensions:[nx,ny],rowOffset:(iz-start)*rows});}
+ const firstLayer=Math.ceil((model.fieldStartsAt||0)*(nz-1)/e.zMax);
+ try{for(let start=firstLayer;start<nz;start+=batch){const layers=Math.min(batch,nz-start);for(let iz=start;iz<start+layers;iz++){signal?.throwIfAborted();const z=iz*e.zMax/(nz-1);let region=regions.findLastIndex(r=>z>=r.z-1e-8),current=0;gpu.use(0,gpu.resources[0],[sources[region]],{n,length,z:z-regions[region].z});for(let axis=0;axis<2;axis++)for(let span=1;span<n;span*=2){gpu.use(1,gpu.resources[1-current],gpu.resources[current].textures,{axis,span});current=1-current;}gpu.use(2,result,gpu.resources[current].textures,{n,length,halfWidth:e.half,dimensions:[nx,ny],rowOffset:(iz-start)*rows});}
    await gpu.readBatch(result,pixels,rows,layers,signal,pack);gl.bindBuffer(gl.PIXEL_PACK_BUFFER,pack);for(let c=0;c<3;c++){gl.getBufferSubData(gl.PIXEL_PACK_BUFFER,c*pixels.byteLength,pixels);for(let l=0;l<layers;l++)out[c].set(halves.subarray(l*stride,l*stride+count),(start+l)*count);}gl.bindBuffer(gl.PIXEL_PACK_BUFFER,null);progress(.04+.88*(start+layers)/nz);await new Promise(r=>setTimeout(r,0));
   }
   if(gl.getError()!==gl.NO_ERROR)throw Error('Optical-bench GPU reconstruction failed');
@@ -103,7 +106,7 @@ export async function generateSpectralBench(e,signal,progress=()=>{}){
 }
 export async function generateSpectralBenchCpu(e,signal,progress=()=>{}){
  const model=cache.get(e.id)||prepareSpectralBench(e.id);cache.set(e.id,model);const nx=Math.round(2*e.half/.25)+1,ny=nx,nz=Math.round(e.zMax/(e.id==='fabry-perot'?.03:.5))+1,count=nx*ny*4,buffer=new ArrayBuffer(HEADER_BYTES+count*nz*6),out=[0,1,2].map(i=>new Uint16Array(buffer,HEADER_BYTES+i*count*nz*2,count*nz)),peaks=[];let maxE=0,maxFlux=0;
- for(let iz=0;iz<nz;iz++){signal?.throwIfAborted();const z=iz*e.zMax/(nz-1),f=benchPlane(model,z);let peak=0;for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++){
+ for(let iz=0;iz<nz;iz++){signal?.throwIfAborted();const z=iz*e.zMax/(nz-1);if(z<(model.fieldStartsAt||0)){peaks.push(0);continue;}const f=benchPlane(model,z);let peak=0;for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++){
   const x=(ix/(nx-1)*2-1)*e.half,y=(iy/(ny-1)*2-1)*e.half,p=Math.round(y*model.n/model.length+model.n/2)*model.n+Math.round(x*model.n/model.length+model.n/2),at=((iz*ny+iy)*nx+ix)*4;let E=0,B=0;
   for(let c=0;c<5;c++){const r=f[c].re[p],s=f[c].im[p],component=c*2;out[Math.floor(component/4)][at+component%4]=toHalf(r);out[Math.floor(component/4)][at+component%4+1]=toHalf(s);if(c<2)E+=r*r+s*s;else B+=r*r+s*s;}
   const flux=-(f[0].re[p]*f[2].re[p]+f[0].im[p]*f[2].im[p]);out[2][at+2]=toHalf(E);out[2][at+3]=toHalf(flux);maxE=Math.max(maxE,Math.sqrt(E));peak=Math.max(peak,e.energyDensity?(E+B)*.5:flux);

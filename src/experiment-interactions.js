@@ -1,4 +1,6 @@
 export const INTERACTIONS={
+ conveyor:{kind:'parameter',phaseArm:'conveyor-right',label:'Transport phase',min:-4*Math.PI,max:4*Math.PI,step:.01,initial:0,period:14,symbol:'\\delta',unit:'pi'},
+ schlieren:{kind:'comparison',aux:'schlieren-bright',choices:['Blade in','Blade out'],label:'Knife edge'},
  'speckle-focus':{kind:'comparison',aux:'speckle-focus-bright',choices:['Uncorrected','Focused'],label:'Wavefront correction'},
  hartmann:{kind:'comparison',aux:'hartmann-bright',choices:['Flat wave','Astigmatic'],label:'Incident wavefront'},
  'sound-cell':{kind:'parameter',label:'Acoustic drive',min:0,max:2.7,step:.005,initial:1.72,period:18,symbol:'d',unit:'rad'},

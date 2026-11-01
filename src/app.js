@@ -62,7 +62,7 @@ function markRequest(id,busy){
  $('app').dataset.requested=id;$('app').dataset.pending=String(busy&&(!volume||id!==state.id));
 }
 function loadProgress(id,value){if(requestedId!==id)return;const button=gallery.querySelector('[data-experiment="'+id+'"]');button?.style.setProperty('--load-progress',String(value));$('loading').style.setProperty('--load-progress',String(value));}
-function commitExperiment(e,data,gpu,prepared){
+function commitExperiment(e,data,gpu,prepared,phaseArm){
  const commitStarted=performance.now();
  const id=e.id;focusSeek=null;scanHold=id==='metamorphosis'?1.8:0;configureFocusStops(id);
  state.id=id;state.z=e.z;state.phase=0;state.sweepDirection=1;state.probe=null;state.sweeping=!thumbnail&&!['cycle','comparison'].includes(e.interaction?.kind);state.playing=!thumbnail;state.slitPhase=0;state.comparison=0;updateSweep();updatePlay();
@@ -70,7 +70,7 @@ function commitExperiment(e,data,gpu,prepared){
  $('slit-interference').hidden=id!=='double';$('slit-phase-title').textContent=id==='michelson'?'Return-arm optical delay':'Between the two slits';$('slit-phase').setAttribute('aria-label',id==='michelson'?'Relative arm phase':'Relative slit phase');$('slit-phase').value=0;paintRange($('slit-phase'));$('slit-phase').disabled=true;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=true;tex($('slit-phase-value'),String.raw`\delta=0`);
  $('surface-guide-setting').hidden=!e.object&&!['saturn','metamorphosis'].includes(id);$('surface-guide-label').textContent=id==='saturn'?'Design curves':id==='metamorphosis'?'Image guides':'Reconstruction surface';$('element-opacity-setting').hidden=e.kind==='beams';$('show-incident').closest('label').hidden=!!e.analytic;$('vortex-setting').hidden=!e.vortex;$('focus-emphasis-setting').hidden=!e.focusWindow;
  $('optic-label').querySelector('[data-tex]').hidden=!!e.analytic;$('distance').max=e.zMax;$('distance').value=e.z;paintRange($('distance'));labelDirty=true;setProbe(null);detailsDirty=true;document.title=e.name+' · diffract';
- firstFrame=false;showVolume(e,data,gpu,prepared);configureInteraction(e);setDistance(state.z,false);loadProgress(id,1);markRequest(id,false);
+ firstFrame=false;showVolume(e,data,gpu,prepared);if(phaseArm)scene.setAuxiliary(phaseArm.data,phaseArm.gpu);configureInteraction(e);setDistance(state.z,false);loadProgress(id,1);markRequest(id,false);
  warmDetails();
  for(const element of [document.querySelector('.view-modes'),$('distance-value'),$('focus-stops')]){element.getAnimations().forEach(a=>a.cancel());element.animate([{opacity:.25},{opacity:1}],{duration:340,easing:'cubic-bezier(.22,1,.36,1)'});}
  $('app').dataset.commitMs=(performance.now()-commitStarted).toFixed(1);
@@ -87,16 +87,21 @@ async function selectExperiment(id,fromHistory=false){
  $('app').dataset.selectedAt=String(performance.now());delete $('app').dataset.fullFieldMs;loading('Preparing field',!!volume);scene.computing=true;
  // Let the pressed state paint before any apparatus construction starts.
  await new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));if(generation!==selection)return;
- let prepared=null,gpu=null;const active=()=>generation===selection;
+ let prepared=null,gpu=null,phaseArm=null;const active=()=>generation===selection;
  const preparing=scene.prepareExperiment(e,preparationSignal).then(bundle=>{if(!active()){scene.discardPrepared(bundle);return null;}prepared=bundle;return bundle;});
  preparing.catch(()=>{});
  try{
-  const data=full.get(id)||await acquire(id,'preview',p=>loadProgress(id,p*.82));
+  const armId=e.interaction?.phaseArm,mainFraction=armId ? .53 : 1;
+  const data=full.get(id)||await acquire(id,'preview',p=>loadProgress(id,p*.82*mainFraction));
   if(!active()){scene.discardPrepared(await preparing);return;}
-  gpu=await scene.uploadVolume(data,active,p=>loadProgress(id,.82+p*.16));prepared=await preparing;
+  gpu=await scene.uploadVolume(data,active,p=>loadProgress(id,(.82+p*.16)*mainFraction));prepared=await preparing;
   if(!active()){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);return;}
-  await scene.captureTransition(420);if(!active()){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);return;}
-  commitExperiment(e,data,gpu,prepared);gpu=prepared=null;loading('');
+  if(armId){
+   const partner=await acquire(armId,'full',p=>loadProgress(id,.53+p*.35));
+   if(active())phaseArm={data:partner,gpu:await scene.uploadVolume(partner,active,p=>loadProgress(id,.88+p*.1))};
+  }
+  if(active())await scene.captureTransition(420);if(!active()){gpu?.forEach(t=>t.dispose());phaseArm?.gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);return;}
+  commitExperiment(e,data,gpu,prepared,phaseArm);gpu=prepared=phaseArm=null;loading('');
   if(data.quality!=='full'){
    const detailed=await acquire(id,'full');if(!active())return;
    while(active()&&performance.now()-lastInteraction<140)await new Promise(resolve=>setTimeout(resolve,40));if(!active())return;
@@ -105,7 +110,7 @@ async function selectExperiment(id,fromHistory=false){
   }
   scene.computing=false;$('app').dataset.fullFieldMs=(performance.now()-Number($('app').dataset.selectedAt)).toFixed(1);
   if(id==='double'||e.interaction?.aux)loadSlitPartner(generation);else warmSpectra(id,generation);
- }catch(error){gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);if(active()){scene.computing=false;requestedId=null;markRequest(state.id,false);fail(error);}}
+ }catch(error){gpu?.forEach(t=>t.dispose());phaseArm?.gpu?.forEach(t=>t.dispose());scene.discardPrepared(prepared);if(active()){scene.computing=false;requestedId=null;markRequest(state.id,false);fail(error);}}
 }
 async function loadSlitPartner(generation){try{const data=await acquire(experiment(state.id).interaction?.aux||'double-right','full');if(generation!==selection)return;const gpu=await scene.uploadVolume(data,()=>generation===selection);if(generation!==selection){gpu?.forEach(t=>t.dispose());return;}scene.setAuxiliary(data,gpu);if(experiment(state.id).interaction?.aux){scene.setComparison(state.comparison);for(const b of document.querySelectorAll('[data-contrast]'))b.disabled=false;}$('slit-phase').disabled=false;for(const b of document.querySelectorAll('[data-slit-phase]'))b.disabled=false;}catch(error){if(generation===selection)fail(error);}}
 function setSlitPhase(value){state.slitPhase=Number(value)/1000*Math.PI;$('slit-phase').value=value;paintRange($('slit-phase'));tex($('slit-phase-value'),String.raw`\delta=${(state.slitPhase/Math.PI).toFixed(2)}\pi`);scene.setSlitPhase(state.slitPhase);probeDirty=true;}
@@ -139,7 +144,7 @@ $('experiment-parameter').addEventListener('input',event=>{if(experiment(state.i
 $('inspection-distance').addEventListener('input',event=>{state.sweeping=false;updateSweep();setDistance(Number(event.target.value));});
 for(const b of document.querySelectorAll('[data-contrast]'))b.addEventListener('click',()=>setComparison(b.dataset.contrast));
 if(scene)scene.onParameter=value=>setParameter(value);
-function parameterTex(c,v){return c.unit==='rad'?`${c.symbol}=${v.toFixed(2)}\\,\\mathrm{rad}`:`${c.symbol}=${(v*180/Math.PI).toFixed(0)}^{\\circ}`;}
+function parameterTex(c,v){if(c.unit==='pi')return c.symbol+'='+(v/Math.PI).toFixed(2)+'\\pi';return c.unit==='rad'?`${c.symbol}=${v.toFixed(2)}\\,\\mathrm{rad}`:`${c.symbol}=${(v*180/Math.PI).toFixed(0)}^{\\circ}`;}
 function updateDistanceLabel(){
  const kind=experiment(state.id).interaction?.kind;if(kind==='parameter')tex($('experiment-value'),experiment(state.id).interaction.symbol?parameterTex(experiment(state.id).interaction,state.parameter):state.id==='absorber'?String.raw`\delta=${(state.parameter/Math.PI).toFixed(2)}\pi`:String.raw`${state.id==='michelson'?String.raw`\Delta z_{\rm m}`:'x_0'}=${(state.parameter*(experiment(state.id).interaction.sliderSign??1)).toFixed(2)}\lambda`);else if(kind==='cycle')tex($('experiment-value'),String.raw`\omega t=${(state.phase/Math.PI).toFixed(2)}\pi`);
 tex($('distance-value'),String.raw`z=${state.z.toFixed(1)}\lambda`);tex($('physical-distance'),String.raw`${(state.z*.532).toFixed(2)}\,\mu\mathrm m`);$('distance').setAttribute('aria-valuetext',`${state.z.toFixed(1)} wavelengths`);labelDirty=false;}
@@ -148,7 +153,14 @@ const probeSample=new Float32Array(10);
 function number(n){if(Math.abs(n)<1e-7)return '0';if(Math.abs(n)<.001){const [a,b]=n.toExponential(1).split('e');return `${a}\\!\\times\\!10^{${Number(b)}}`;}return n.toFixed(3);}
 function updateProbe(){
  if(!state.probe||!volume)return;
- const probeZ=state.probe.z??state.z;sampleField(volume,state.probe.x,state.probe.y,probeZ,probeSample);if(scene.auxiliary&&experiment(state.id).interaction?.aux){const aux=sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z);for(let c=0;c<10;c++)probeSample[c]+=state.comparison*aux[c];}if(scene.auxiliary&&state.id==='double')mixSlitPhase(probeSample,sampleField(scene.auxiliary,state.probe.x,state.probe.y,state.z),state.slitPhase);const phase=TAU*probeZ-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
+ const {x,y}=state.probe,probeZ=state.probe.z??state.z;
+ sampleField(volume,x,y,probeZ,probeSample);
+ if(scene.auxiliary){
+  const aux=sampleField(scene.auxiliary,x,y,probeZ),interaction=experiment(state.id).interaction;
+  if(interaction?.aux){for(let c=0;c<10;c++)probeSample[c]+=state.comparison*aux[c];}
+  else mixSlitPhase(probeSample,aux,interaction?.phaseArm?state.parameter:state.slitPhase);
+ }
+ const phase=TAU*probeZ-state.phase,c=Math.cos(phase),s=Math.sin(phase),real=i=>probeSample[i]*c-probeSample[i+1]*s;
  tex($('probe-coordinates'),state.probe.z!=null?String.raw`(x,z)=(${state.probe.x.toFixed(1)},${probeZ.toFixed(1)})\lambda`:String.raw`(x,y)=(${state.probe.x.toFixed(1)},${state.probe.y.toFixed(1)})\lambda`);
  tex($('probe-electric'),String.raw`\frac{\mathbf E}{E_0}=\bigl(0,\,${number(real(0))},\,${number(real(2))}\bigr)`);
  tex($('probe-magnetic'),String.raw`\frac{c\mathbf B}{E_0}=\bigl(${number(real(4))},\,${number(real(6))},\,${number(real(8))}\bigr)`);

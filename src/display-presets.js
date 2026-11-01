@@ -3,6 +3,8 @@ export const DEFAULT_APPEARANCE=Object.freeze({display:'energy',planeSampling:'i
 // Display-only starting points. Field amplitudes, propagation and probe values
 // are unchanged. Every new experiment restores its complete curated defaults.
 const LOOKS={
+ conveyor:{display:'field',planeSampling:'average',speed:.1,opacity:1.22,volumeContrast:2.3,threshold:.085,exposure:1.12,maskOpacity:.36,detector:false,axes:false,incident:false,detectorExposure:'fixed',gain:.18},
+ schlieren:{display:'energy',opacity:.32,volumeContrast:1.38,threshold:.027,exposure:1.04,maskOpacity:.48,detector:false,axes:false,incident:false,detectorZoom:1.25,detectorExposure:'fixed'},
  'speckle-focus':{display:'energy',opacity:.34,threshold:.023,volumeContrast:1.4,exposure:1.16,detectorExposure:'fixed',detectorZoom:1.2,maskOpacity:.62,axes:false,incident:false},
  hartmann:{focusEmphasis:true,display:'energy',opacity:.38,threshold:.023,volumeContrast:1.55,exposure:1.12,detectorExposure:'fixed',detectorZoom:1.06,maskOpacity:.56,axes:false,incident:false},
  coronagraph:{display:'energy',opacity:.42,threshold:.008,detectorExposure:'fixed',detectorZoom:1.28,maskOpacity:.36,detectorOpacity:.72,incident:false,axes:false,exposure:1.2},
